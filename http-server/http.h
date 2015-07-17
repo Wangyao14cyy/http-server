@@ -49,11 +49,11 @@ int setnonblock(int fd);
 void addfd(int epollfd,int fd);
 void lt(struct epoll_events *events,int number,int epollfd,int listenfd);//switch to LT mode
 void getinfomation(int clifd);
-void echo_command(int clifd,char *command,char *argument);
+void echo_command(int clifd,char *command,char *argument,char *buf);
 void Get(int clifd,char *argument);
 void Head(int clifd,char *argument);
 void Options(int clifd);
-void Post(int clifd,char *argument); 
+void Post(int clifd,char *argument,char *buf); 
 char *file_type(char *argument);
 void sendmsgs(int clifd,char *type,char *argument,int length);
 void sendhead(int clifd,char *type,int length,int error_bit);
@@ -366,6 +366,7 @@ void lt(struct epoll_events *events,int number,int epollfd,int listenfd)
 			close(sockfd);
 	}
 }
+
 void getinfomation(int clifd)
 {
 	char buf[MAXBUF];
@@ -379,22 +380,30 @@ void getinfomation(int clifd)
 	bzero(mes,MAXBUF);
 
 	strcpy(argument,"./");
-	if(0<(recvnum=recv(clifd,buf,sizeof(buf),0)))
-		infofunc("POST error!");		
+	if(0>(recvnum=recv(clifd,buf,sizeof(buf),0)))
+		{
+            infofunc("POST error!");
+            return;
+        }    
 	if(2==sscanf(buf,"%s /%s",command,argument+2))//when %s meet a blank ,it will stop
 		{
 			sprintf(mes,"recv data:\n%s",buf);
-			infomsg();
+			infomsg(mes);
 		}	
 	else
 		command="ERROR";
 
-	echo_command(clifd,command,argument);
+	echo_command(clifd,command,argument,buf);
 
 }
 
-void echo_command(int clifd,char *command,char *argument)
+void echo_command(int clifd,char *command,char *argument,char *buf)
 {
+    if((0==strcmp(argument+2,".."))||(0==strcmp(argument+2,".")))
+        {
+            infofunc("arugement ban . and ..");
+            return;
+        }
 	if(0==strcmp(command,"GET"))
 	{
 		Get(clifd,argument);
@@ -405,7 +414,7 @@ void echo_command(int clifd,char *command,char *argument)
 	}
 	else if(0==strcmp(command,"POST"))
 	{
-		Post(clifd,argument);
+		Post(clifd,argument,buf);
 	}	
 	else if(0==strcmp(command,"head"))
 	{
@@ -619,9 +628,30 @@ void Options(int clifd)
 		senderror(clifd,1);    
 }
 
-void Post(int clifd,char *argument) //cgi
+void Post(int clifd,char *argument,char *buf) //cgi
 {
-	;
+	int num1;
+    pid_t pid;
+    char ptr1[10];
+    char ptr2[10];
+    bzero(ptr,10);
+    bzero(ptr,10);
+    if(-1==sscanf(buf,"\r\n\r\nnum=%d",num1))
+        {
+            infofunc("Post num error!");
+            return;
+        }
+    sprintf(ptr1,"%d",clifd);
+    sprintf(ptr2,"%d",num1);
+    pid=fork();
+    if(0>pid)
+        {
+            infofunc("post fork error!");
+            return;
+        }
+    if(pid==0)
+        execl("./cal.cgi",ptr1,ptr2);
+    return;   
 }
 
 void Head(int clifd,char *argument)
