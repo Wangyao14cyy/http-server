@@ -650,7 +650,7 @@ void Post(int clifd,char *argument,char *buf) //cgi
             return;
         }
     if(pid==0)
-        execl("./cal.cgi",ptr1,ptr2);
+        execl("./cgi-bin/cal.cgi",ptr1,ptr2,(char *)0);
     return;   
 }
 
