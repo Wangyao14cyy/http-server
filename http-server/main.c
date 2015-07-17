@@ -1,23 +1,3 @@
-#include <stdarg.h>
-#include <errno.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <string.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <resolv.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <getopt.h>
-#include <sys/epoll.h>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
 #include "http.h"
 
 char buf[MAXBUF+1];
