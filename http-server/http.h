@@ -18,6 +18,8 @@
 #include <sys/epoll.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <signal.h> 
+#include <pthread.h>
 
 #define DEFAULTPORT 80
 #define DEFAULTLOG "/home/wangyao/log/http.log"
