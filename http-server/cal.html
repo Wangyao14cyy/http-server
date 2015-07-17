@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>sdsa</title>title>
+</head>
+<body>
+<button type="button" name='button1' id='button' value='10'>10</button>
+<input type='text' name='input' id='input' />
+
+<script type='text/javascript'>
+var btn = document.getElementById('button');
+var input = document.getElementById('input').value();
+btn.onclick = function(){
+	xmlhttp = new XMLHttpRequest();
+	xmlhttp.onreadystatechange = function(){
+		if(xmlhttp.readyState == 4 && xmlhttp.status == 200){
+			alert('post');
+		}
+	}
+	xmlhttp.post('url', {'num1':input})
+	xmlhttp.send()
+}
+</script>
+</body>
+
+</html>
