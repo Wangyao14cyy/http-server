@@ -11,6 +11,8 @@ int tls_check=0;
 char *errno_q=NULL;
 char *req[3]={"200 OK","500 Internal Server Error","404 Not Found"};
 
+static tpool_t *tpool=NULL;
+
 SSL_CTX *ctx; 
 
 extern int errno;

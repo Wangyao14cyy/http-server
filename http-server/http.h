@@ -21,15 +21,17 @@
 #include <signal.h> 
 #include <pthread.h>
 
-#define DEFAULTPORT 80
+#ifndef HTTP_SERVER_H__
+#define HTTP_SERVER_H__
+
+#define DEFAULTPORT 8899
 #define DEFAULTLOG "/home/wangyao/log/http.log"
 #define DEFAULTBACKLOG 10 //why 10?
 #define DEFAULTDIR "/home/wangyao/http"
 
 #define HOSTLEN 256
 #define MAXBUF 1024
-#define MAXEVENTS 5000
-#define MAXPATH 256
+#define MAXEVENTS 10000
 
 void derrormsg(char *msg);  //send the error message in the backgroud
 void errormsg(char *msg);   //send the error message not in the backgroud
@@ -60,6 +62,30 @@ char *file_type(char *argument);
 void sendmsgs(int clifd,char *type,char *argument,int length);
 void sendhead(int clifd,char *type,int length,int error_bit);
 void senderror(int clifd,int bit);
+
+void tpool_destroy();
+int tpool_create(int thr_num);
+int tpool_add_work(void *(*routine)(void *),void *arg);
+
+
+typedef struct tpool_work
+{
+    void* (*routine)(void *);
+    void *arg;
+    struct tpoll_work *next;   
+}tpool_work_t;
+
+typedef struct tpool_work
+{
+    int shutdown;  //close the pthread pool if the value is 1
+    int max_thr_num;
+    pthread_t *thr_id;
+    tpool_work_t *queue_head;       
+    pthread_cond_t queue_ready;      
+    pthrad_mutex_t queue_lock;
+}tpool_t;
+
+static tpool_t *tpool=NULL;
 
 SSL_CTX *ctx; 
 
@@ -308,7 +334,7 @@ void lt(struct epoll_events *events,int number,int epollfd,int listenfd)
 		else if(events[i].events & EPOLLIN)
 			getinfomation(sockfd);
 		else 
-			close(sockfd);
+			infofunc("something else happened!");
 	}
 }
 
@@ -623,3 +649,81 @@ void ssl_init(void)  //https
 	}
 }
 
+int tpool_create(int thr_num)
+{
+    int i;
+    tpool=(tpool_t *)calloc(1,sizeof(tpool_t));
+    if(!tpool)    
+        errorfunc("creare tpool error!");
+    
+    tpool->max_thr_num=thr_num;
+    tpool->shutdown=0;
+    tpool->queue_head=NULL;
+    if(pthread_mutex_init(tpool->queue_lock,NULL)!=0)
+        errorfunc("mutex init error!");
+    if(pthread_cond_init(tpool->queue_ready,NULL)!=0)
+        errorfunc("cond init error!");
+    
+    tpool->thr_id=(pthread_t *)calloc(thr_num,sizeof(pthread_t));
+    if(!tpool->thr_id)
+        errorfunc("calloc error!");
+    for(i=0;i<thr_num;i++)
+    {
+        if(pthread_create(&tpool->thr_id[i],NULL,thread_routine,NULL)!=0)
+            errorfunc("pthread create error!");
+    }
+
+    return 0;
+}
+
+void tpool_destroy()
+{
+    int i;
+    tpool_work_t *member;
+    
+    if(tpool->shutdown)
+       return;
+    tpool->shutdown=1;
+    
+    pthread_mutex_lock(&tpool->queue_lock);
+    pthread_cond_broadcast(&tpool->queue_ready);
+    pthread_mutex_unlock(&tpool->queue_lock);
+    
+    for(i=0;i<tpool->max_thr_num;i++)
+    {
+        pthread_join(tpool->thr_id[i],NULL);       
+    }
+    free(tpool->thr_id);
+
+    while(tpool->queue_head){
+        member=tpool->queue_head;
+        tpool->queue_head=tpool->queue_head->next;
+        free(member);
+    }
+
+    pthread_mutex_destroy(&tpool->queue_lock);
+    pthread_cond_destroy(&tpool->queue_ready);
+    
+    free(tpool);
+}
+
+int tpool_add_work(void *(*routine)(void *),void *arg)
+{
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+#endif HTTP_SERVER_H__
