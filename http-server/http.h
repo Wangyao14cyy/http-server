@@ -51,7 +51,7 @@ void infofunc(char *msg);
 void ssl_init(void );
 int setnonblock(int fd);
 void addfd(int epollfd,int fd);
-void lt(struct epoll_events *events,int number,int epollfd,int listenfd);//switch to LT mode
+void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int listenfds);//switch to LT mode
 void getinfomation(int clifd);
 void echo_command(int clifd,char *command,char *argument,char *buf);
 void Get(int clifd,char *argument);
@@ -66,7 +66,11 @@ void senderror(int clifd,int bit);
 void tpool_destroy();
 int tpool_create(int thr_num);
 int tpool_add_work(void *(*routine)(void *),void *arg);
+void* thread_routine(void *arg);
+void *func(void *arg);
+int make_ssl_socket(sockfd);
 
+int ssl_number=0;
 
 typedef struct tpool_work
 {
@@ -75,7 +79,7 @@ typedef struct tpool_work
     struct tpoll_work *next;   
 }tpool_work_t;
 
-typedef struct tpool_work
+typedef struct
 {
     int shutdown;  //close the pthread pool if the value is 1
     int max_thr_num;
@@ -85,9 +89,44 @@ typedef struct tpool_work
     pthrad_mutex_t queue_lock;
 }tpool_t;
 
+typedef struct
+{
+    int clifd;
+    int type;
+}sign;
+
+static int tlsfd[1000];
 static tpool_t *tpool=NULL;
 
 SSL_CTX *ctx; 
+
+
+static void* thread_routine(void *arg)
+{
+    tpool_work_t *work;
+    while(1)
+    {
+        pthread_mutex_lock(&tpool->queue_lock);
+        while(!tpool->queue_head&&!tpool->shutdown)
+        {
+            pthread_cond_wait(&tpool->queue_ready,&tpool->queue_lock);
+        }
+        if(tpool->shutdown)
+        {
+            pthread_mutex_unlock(&tpoll->queue_lock);
+            pthread_exit(NULL);
+        } 
+        work=tpool->queue_head;
+        tpool->queue_head=tpool->queue_head->next;
+        pthread_mutex_unlock(&tpool->queue_lock);
+        
+        work->routine(work->arg);
+        free(work);
+    }   
+    return NULL;    
+}
+
+
 
 void daemons(void)
 {		
@@ -310,9 +349,10 @@ void addfd(int epollfd,int fd)
 	setnonblock(fd);
 }
 
-void lt(struct epoll_events *events,int number,int epollfd,int listenfd)
+void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int listenfds)
 {
 	char buf[MAXBUF];
+    int judge=0;
 	for(int i=0;i<number;i++)
 	{
 		bzero(buf,MAXBUF);
@@ -320,7 +360,7 @@ void lt(struct epoll_events *events,int number,int epollfd,int listenfd)
 		if(sockfd==listenfd)
 		{
 			struct sockaddr_in cli_address;
-			socklen_t cli_addrlength=sizeof(struct sockaddr_in);
+			socklen_t cli_addrlength=sizeof(struct sockaddr_in);	
 			int clifd=accept(listenfd,(struct sockaddr *)&cli_address,&cli_addrlength);
 			if(clifd<0)
 				{	
@@ -331,14 +371,30 @@ void lt(struct epoll_events *events,int number,int epollfd,int listenfd)
 			addfd(epollfd,clifd);
 			infofunc(buf);
 		}
+        else if(sockfd==listenfds)
+        {
+            //ssl code loop
+        }
 		else if(events[i].events & EPOLLIN)
-			getinfomation(sockfd);
-		else 
+        {
+            for(int t=0;t<ssl_number;t++)
+                if(sockfd==tlsfd[t])
+                {
+                    judge=1;
+                    break;
+                }
+            sign *arg=NULL;
+            arg=(sign *)malloc(sizeof(sign));
+            arg->type=judge;
+            arg->clifd=clifd;
+            tpool_add_work(func,(void *)sign);
+        }        
+        else
 			infofunc("something else happened!");
 	}
 }
 
-void getinfomation(int clifd)
+void getinfomation(int clifd,int judge)
 {
 	char buf[MAXBUF];
 	int recvnum;
@@ -349,9 +405,10 @@ void getinfomation(int clifd)
 	bzero(argument,MAXBUF];
 	bzero(command,10);
 	bzero(mes,MAXBUF);
-
-	strcpy(argument,"./");
-	if(0>(recvnum=recv(clifd,buf,sizeof(buf),0)))
+	
+    strcpy(argument,"./");
+    
+    if(0>(recvnum=recv(clifd,buf,sizeof(buf),0)))
 		{
             infofunc("POST error!");
             return;
@@ -363,12 +420,10 @@ void getinfomation(int clifd)
 		}	
 	else
 		command="ERROR";
-
-	echo_command(clifd,command,argument,buf);
-
+    end; 
 }
 
-void echo_command(int clifd,char *command,char *argument,char *buf)
+void echo_command(int clifd,char *command,char *argument,char *buf,int judge)
 {
     if((0==strcmp(argument+2,".."))||(0==strcmp(argument+2,".")))
         {
@@ -377,19 +432,19 @@ void echo_command(int clifd,char *command,char *argument,char *buf)
         }
 	if(0==strcmp(command,"GET"))
 	{
-		Get(clifd,argument);
+		Get(clifd,argument,judge);
 	}
 	else if(0==strcmp(command,"OPTIONS"))
 	{
-		Options(clifd);
+		Options(clifd,judge);
 	}
 	else if(0==strcmp(command,"POST"))
 	{
-		Post(clifd,argument,buf);
+		Post(clifd,argument,buf,judge);
 	}	
 	else if(0==strcmp(command,"head"))
 	{
-		Head(clifd,argument)
+		Head(clifd,argument,judge)
 	}
 	else if(0==strcmp(command,"ERROR"))
 	{
@@ -398,7 +453,7 @@ void echo_command(int clifd,char *command,char *argument,char *buf)
 	}
 }
 
-void Get(int clifd,char *argument)
+void Get(int clifd,char *argument,int judge)
 {
 	struct stat info;
 	struct dirent *dirents;
@@ -415,7 +470,7 @@ void Get(int clifd,char *argument)
         sprintf(buf,"HTTP/1.1 200 OK\r\nServer:ywang\r\nContent-Type:text/html;charset=UTF-8\r\n\r\n<html><head><title>%d - %s</title></head>"
 			"<body><font size=+4>Ywang's server</font><br><hr width=\"100%%\"><br><center>"
 			"<table border cols=3 width=\"100%%\">",errno,strerror(errno));			
-		ret=sendall(clifd,buf,&strlen(buf));
+		ret=sendall(clifd,buf,&strlen(buf),judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -423,7 +478,7 @@ void Get(int clifd,char *argument)
 			}
 		bzero(buf,MAXBUF);	
 		sprintf(buf,"</table><font color=\"CC0000\" size=+2>Please contact the administrator consulting why appear as follows error message：\n%s %s</font></body></html>",argument+2,strerror(errno));
-		ret=sendall(clifd,buf,&strlen(buf));
+		ret=sendall(clifd,buf,&strlen(buf),judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error");	
@@ -443,7 +498,7 @@ void Get(int clifd,char *argument)
         sprintf(buf,"HTTP/1.1 200 OK\r\n""Server:ywang\r\nContent-Type:text/html; charset=UTF-8\r\n\r\n<html><head><title>%s</title></head>"  
              "<body><font size=+4>Linux directory access server</font><br><hr width=\"100%%\"><br><center>"  
              "<table border cols=3 width=\"100%%\">", argument+2);  
-        ret=sendall(clifd,buf,&strlen(buf));
+        ret=sendall(clifd,buf,&strlen(buf),judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -451,7 +506,7 @@ void Get(int clifd,char *argument)
 			}
 		bzero(buf,MAXBUF);	
 		sprintf(buf,"<caption><font size=+3>dir %s</font></caption>\n",argument+2);
-        ret=sendall(clifd,buf,&strlen(buf));
+        ret=sendall(clifd,buf,&strlen(buf),judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -459,7 +514,7 @@ void Get(int clifd,char *argument)
 			}
 		bzero(buf,MAXBUF);
 		sprintf(buf,"<tr><td>name</td><td>大小</td><td>change time</td></tr>\n");				
-        ret=sendall(clifd,buf,&strlen(buf));
+        ret=sendall(clifd,buf,&strlen(buf),judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -469,7 +524,7 @@ void Get(int clifd,char *argument)
 		if(0==dir)
 		{
 			sprintf(buf,"</table><font color=\"CC0000\" size=+2>%s</font></body></html>", strerror(errno));
-			ret=sendall(clifd,buf,&strlen(buf));
+			ret=sendall(clifd,buf,&strlen(buf),judge);
 			if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -482,7 +537,7 @@ void Get(int clifd,char *argument)
            if((0==strcmp(dirents->d_name,","))||(0==strcmp(dirents->d_name,",,")))
             continue;
            buf=dirents->d_name;
-           ret=sendall(clifd,buf,&strlen(buf));
+           ret=sendall(clifd,buf,&strlen(buf),judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -491,7 +546,7 @@ void Get(int clifd,char *argument)
            bzero(buf,MAXBUF); 
         }
         sprintf(buf,"</table></body></html>");
-           ret=sendall(clifd,buf,&strlen(buf));
+           ret=sendall(clifd,buf,&strlen(buf),judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -506,7 +561,7 @@ void Get(int clifd,char *argument)
         	"<html><head><title>permission denied</title></head>"  
             "<body><font size=+4>Linux directory access server</font><br><hr width=\"100%%\"><br><center>"  
              "<table border cols=3 width=\"100%%\">");
-        ret=sendall(clifd,buf,&strlen(buf));
+        ret=sendall(clifd,buf,&strlen(buf),judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -514,7 +569,7 @@ void Get(int clifd,char *argument)
             }       
         bzero(buf,MAXBUF);
         sprintf(buf,"</table><font color=\"CC0000\" size=+2>You visit resources '%s' be under an embargo，Please contact the administrator to solve!</font></body></html& gt;", argumet+2);
-        ret=sendall(clifd,buf,&strlen(buf));
+        ret=sendall(clifd,buf,&strlen(buf),judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -532,7 +587,7 @@ char *file_type(char *argument)
     return NULL;
 }
 
-void sendmsgs(int clifd,char *type,char *argument,int length)
+void sendmsgs(int clifd,char *type,char *argument,int length,int judge)
 {
     int err_bit=0;
     int fd;
@@ -544,7 +599,7 @@ void sendmsgs(int clifd,char *type,char *argument,int length)
     bzero(buf,MAXBUF);
     while((nbytes=recv(fd,buf,MAXBUF,0))>0) 
     {
-        n=sendall(clifd,buf,&strlen(buf));
+        n=sendall(clifd,buf,&strlen(buf),judge);
         bzero(buf,MAXBUF);
         if(n==-1)
         break;
@@ -709,21 +764,75 @@ void tpool_destroy()
 
 int tpool_add_work(void *(*routine)(void *),void *arg)
 {
-       
+    tpool_work_t *work,*member;           
+    if(!routine)
+    {  
+        infofunc("routine error!");
+        return -1;
+    }
+    work=malloc(sizeof(tpool_work_t));
+    if(!work)
+    {
+        infofunc("work error!"); 
+        return -1;
+    }
+        
+    work->routine=routine;
+    work->arg=arg;
+    work->next=NULL;
+    
+    pthread_mutex_lock(&tpool->queue_lock);
+    member=tpool->queue_head;
+    if(!member)
+    {
+        tpool->queue_head=work;
+    }
+    else 
+    {
+        while(!tpool->queue_head->next)
+            tpool->queue_head=tpool->queue_head->next;
+        tpool->queue_head->next=work;
+    }
+    pthread_cond_signal(&tpool->queue_ready);
+    pthread_mutex_unlock(&tpool->queue_lock);
+    
+    return 0;   
+
+}
+
+void *thread_routine
+{
+    tpool_work_t *work;
+    while(1)
+    {
+        pthread_mutex_lock(&tpool->queue_lock);
+        while(!tpool->queue_head&&!tpool->shutdown)
+        {
+            pthread_cond_wait(&tpool->queue_ready,&tpool->queue_lock);
+        }
+        if(tpool->shutdown)       
+            {
+                pthread_mutex_unlock(&tpool->queue_lock);
+                pthread_exit(NULL);
+            }
+        work=(tpool_work_t *)malloc(sizeof(tpool_work_t));
+        work=tpool->queue_head;
+        tpool->queue_head=tpool->queue_head->next;
+        pthread_mutex_unlock(&tpool->queue_lock);
+
+        work->routine(work->arg);
+        free(work);
+    }
+    return NULL;
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+void *func(void *arg)
+{
+    sign *var=(sign *)arg;		    
+    int fd=var->clifd;
+    int judge=var->type;
+    getinfomation(fd,judge);        
 }
 
 #endif HTTP_SERVER_H__

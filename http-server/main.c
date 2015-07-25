@@ -11,8 +11,6 @@ int tls_check=0;
 char *errno_q=NULL;
 char *req[3]={"200 OK","500 Internal Server Error","404 Not Found"};
 
-static tpool_t *tpool=NULL;
-
 SSL_CTX *ctx; 
 
 extern int errno;
@@ -20,7 +18,7 @@ extern int errno;
 int main(int argc,char **argv)
 {
 	printf("Http server welcome you!\n");
-	
+    tpool_create(10);	
 	if(1!=argc)
 	getoption(argc,argv);//It's hard to learn how to use it 	
 	
@@ -30,11 +28,9 @@ int main(int argc,char **argv)
 		logfd=open(_log,O_WRONLY | O_CREAT | O_APPEND);
 	
 	daytime();
-	int sockfd;
+	int sockfd,sockfds;
 	if(daemon_check)
 		daemons();
-	if(tls_check)
-		ssl_init();
 	signal(SIGPIPE,SIG_IGN);
 	signal(SIGCHLD, SIG_IGN);
 	sockfd=make_socket(sockfd);
@@ -42,8 +38,7 @@ int main(int argc,char **argv)
 		errorfunc("sockfd error!");
 	int addrlen = 1;  
     setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&addrlen,sizeof(addrlen));//set the port quickly reuse
-	if(tls_check)
-		sockfd=openssl(sockfd);
+    sockfds=ssl_init(sockfds);
 	struct epoll_events events[MAXEVENTS];//question
 	int epollfd=epoll_create[MAXEVENTS];
 	addfd(epollfd,sockfd);
@@ -53,8 +48,11 @@ int main(int argc,char **argv)
 		int ret=epoll_wait(epollfd,events,MAXEVENTS,-1);//epoll func should be use in here
 		if(ret<0)
 			errorfunc("epoll_wait error!");
-		lt(events,ret,epollfd,sockfd);
+		lt(events,ret,epollfd,sockfd,sockfds);
 	}
+    close(sockfds);
 	close(sockfd);
+    sleep(10);
+    tpool_destroy();
 	exit(0);
 }
