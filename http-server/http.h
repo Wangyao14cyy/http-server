@@ -95,6 +95,12 @@ typedef struct
     int type;
 }sign;
 
+typedef struct
+{
+    int listenfd;
+    int epollfd;
+}sign2;
+
 static int tlsfd[1000];
 static tpool_t *tpool=NULL;
 
@@ -351,29 +357,25 @@ void addfd(int epollfd,int fd)
 
 void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int listenfds)
 {
-	char buf[MAXBUF];
     int judge=0;
 	for(int i=0;i<number;i++)
 	{
-		bzero(buf,MAXBUF);
 		int sockfd=events[i].data.fd;
 		if(sockfd==listenfd)
 		{
-			struct sockaddr_in cli_address;
-			socklen_t cli_addrlength=sizeof(struct sockaddr_in);	
-			int clifd=accept(listenfd,(struct sockaddr *)&cli_address,&cli_addrlength);
-			if(clifd<0)
-				{	
-					infofunc("clifd accept error!");
-					continue;
-				}
-			sprintf(buf,"connect %s:%d!",inet_ntoa(cli_address.sin_addr.s_addr),ntohs(cli_address.sin_port));		
-			addfd(epollfd,clifd);
-			infofunc(buf);
+            sign2 *arg=NULL;
+            arg=(sign2 *)malloc(sizeof(sign2));
+            arg->listenfd=listenfd;
+            arg->epollfd=epollfd;
+            tpool_add_work(func2,(void *)arg);
 		}
         else if(sockfd==listenfds)
         {
-            //ssl code loop
+            sign2 *arg=NULL;//ssl code loop
+            arg=(sign2 *)malloc(sizeof(sign2));
+            arg->listenfd=listenfds;
+            arg->epollfd=epollfd;
+            tpool_add_work(fun3,(void *)arg);
         }
 		else if(events[i].events & EPOLLIN)
         {
@@ -420,7 +422,7 @@ void getinfomation(int clifd,int judge)
 		}	
 	else
 		command="ERROR";
-    end; 
+        echo_command(clifd,command,argument,buf,judge);
 }
 
 void echo_command(int clifd,char *command,char *argument,char *buf,int judge)
@@ -827,12 +829,43 @@ void *thread_routine
 }
 
 
-void *func(void *arg)
+void *func1(void *arg)
 {
     sign *var=(sign *)arg;		    
     int fd=var->clifd;
     int judge=var->type;
-    getinfomation(fd,judge);        
+    getinfomation(fd,judge);
+    free(arg);
 }
 
+void *func2(void *arg)
+{
+    arg=(sign2 *)arg;
+    int listenfd=arg->listenfd;
+    int epollfd=arg->epollfd;
+    char buf[MAXBUF];
+	bzero(buf,MAXBUF);
+	struct sockaddr_in cli_address;
+	socklen_t cli_addrlength=sizeof(struct sockaddr_in);	
+	int clifd=accept(listenfd,(struct sockaddr *)&cli_address,&cli_addrlength);
+	if(clifd<0)
+	{	
+		infofunc("clifd accept error!");
+		continue;
+	}
+	sprintf(buf,"connect %s:%d!",inet_ntoa(cli_address.sin_addr.s_addr),ntohs(cli_address.sin_port));		
+	addfd(epollfd,clifd);
+	infofunc(buf);   
+}
+
+void *func3(void *arg)
+{
+        //ssl handshake
+
+
+
+
+
+
+}
 #endif HTTP_SERVER_H__
