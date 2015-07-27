@@ -58,7 +58,7 @@ void Head(int clifd,char *argument,int judge);
 void Options(int clifd,int judge);
 void Post(int clifd,char *argument,char *buf,int judge); 
 char *file_type(char *argument);
-void sendmsgs(int clifd,char *type,char *argument,int length);
+void sendmsgs(int clifd,char *type,char *argument,int length,int judge);
 void sendhead(int clifd,char *type,int length,int error_bit);
 void senderror(int clifd,int bit);
 
@@ -81,7 +81,6 @@ int daemon_check=0; // -D option
 int logfd=0;  
 char *errno_q=NULL;
 char *req[3]={"200 OK","500 Internal Server Error","404 Not Found"};
-int lengths;
 typedef struct tpool_work
 {
     void* (*routine)(void *);
@@ -598,7 +597,8 @@ void Get(int clifd,char *argument,int judge)
             }       
         bzero(buf,MAXBUF);
         sprintf(buf,"</table><font color=\"CC0000\" size=+2>You visit resources '%s' be under an embargo，Please contact the administrator to solve!</font></body></html& gt;", argumet+2);
-        ret=sendall(clifd,buf,&strlen(buf),judge);
+        lengths=strlen(buf);
+        ret=sendall(clifd,buf,&lengths,judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -611,7 +611,7 @@ void Get(int clifd,char *argument,int judge)
 char *file_type(char *argument)
 {
     char *temp;
-    if(NULL!=(temp=strchr(arg,'.')))
+    if(NULL!=(temp=strchr(argument,'.')))
         return temp+1;
     return NULL;
 }
@@ -624,11 +624,12 @@ void sendmsgs(int clifd,char *type,char *argument,int length,int judge)
     char buf[MAXBUF];
     if(0>(fd=open(argument,O_RDONLY))) //open maybe dangerous because work_dir's question   
         err_bit=1;
-    sendhead(clifd,type,length,error_bit);
+    sendhead(clifd,type,length,err_bit);
     bzero(buf,MAXBUF);
     while((nbytes=recv(fd,buf,MAXBUF,0))>0) 
     {
-        n=sendall(clifd,buf,&strlen(buf),judge);
+        lengths=strlen(buf);
+        n=sendall(clifd,buf,lengths,judge);
         bzero(buf,MAXBUF);
         if(n==-1)
         break;
@@ -658,7 +659,7 @@ void sendhead(int clifd,char *type,int length,int err_bit)
     }    
     char buf[MAXBUF];
     bzero(buf,MAXBUF);
-    sprintf(buf,"HTTP/1.1 %s\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n",content_type,req[error_bit],length);
+    sprintf(buf,"HTTP/1.1 %s\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n",content_type,req[err_bit],length);
     
     if(-1==sendall(clifd,buf,&strlen(buf)))
         infofunc("send head error!");
@@ -673,12 +674,12 @@ void senderror(int clifd,int bit)//send 404 or 500 error to client
         infofunc("senderror error!");
 }
 
-void Options(int clifd)
+void Options(int clifd,int judge)
 {
 	char buf[MAXBUF];
 	bzero(buf,MAXBUF);
 	sprintf(buf,"HTTP/1.1 200 OK\r\nAllow: GET, POST, HEAD, OPTIONS\r\nContent-length: 0\r\n\r\n");
-	ret=sendall(clifd,buf,&strlen(buf));
+	ret=sendall(clifd,buf,&strlen(buf),judge);
  	if(ret==-1)
 		senderror(clifd,1);    
 }
