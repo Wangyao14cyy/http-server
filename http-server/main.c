@@ -10,8 +10,6 @@ int logfd=0;
 char *errno_q=NULL;
 char *req[3]={"200 OK","500 Internal Server Error","404 Not Found"};
 
-SSL_CTX *ctx; 
-
 extern int errno;
 
 int main(int argc,char **argv)
@@ -20,7 +18,7 @@ int main(int argc,char **argv)
     tpool_create(10);	
 	if(1!=argc)
 	getoption(argc,argv);//It's hard to learn how to use it 	
-	
+	SSL_CTX *ctx; 
 	if(NULL==_log)
 		logfd=open(DEFAULTLOG,O_WRONLY | O_APPEND | O_CREAT);
 	else

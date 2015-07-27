@@ -1,0 +1,106 @@
+In file included from main.c:1:
+./http.h:137:26: warning: incompatible pointer types assigning to 'tpool_work_t *' (aka 'struct tpool_work *') from 'struct tpoll_work *' [-Wincompatible-pointer-types]
+        tpool->queue_head=tpool->queue_head->next;
+                         ^~~~~~~~~~~~~~~~~~~~~~~~
+./http.h:201:5: error: conflicting types for 'sendall'
+int sendall(int fd,char *buf,int *len,int judge) 
+    ^
+./http.h:44:5: note: previous declaration is here
+int sendall(int fd,char *buf,int *len);        //remember turn to next line by "\n"   
+    ^
+./http.h:289:21: warning: implicit declaration of function 'gethostbyname' is invalid in C99 [-Wimplicit-function-declaration]
+        if(NULL==(addrinfo=gethostbyname(hostname)))
+                           ^
+./http.h:289:20: warning: incompatible integer to pointer conversion assigning to 'struct hostent *' from 'int' [-Wint-conversion]
+        if(NULL==(addrinfo=gethostbyname(hostname)))
+                          ^~~~~~~~~~~~~~~~~~~~~~~~
+./http.h:291:17: error: incomplete definition of type 'struct hostent'
+        switch(addrinfo->h_addrtype){
+               ~~~~~~~~^
+/usr/include/openssl/bio.h:732:8: note: forward declaration of 'struct hostent'
+struct hostent *BIO_gethostbyname(const char *name);
+       ^
+In file included from main.c:1:
+./http.h:371:9: warning: implicit declaration of function 'epollctl' is invalid in C99 [-Wimplicit-function-declaration]
+        if(-1==epollctl(epollfd,EPOLL_CTL_ADD,fd,&event))
+               ^
+./http.h:468:29: error: expected ';' after expression
+                Head(clifd,argument,judge)
+                                          ^
+                                          ;
+./http.h:494:25: error: cannot take the address of an rvalue of type 'unsigned long'
+                ret=sendall(clifd,buf,&strlen(buf),judge);
+                                      ^~~~~~~~~~~~
+./http.h:502:25: error: cannot take the address of an rvalue of type 'unsigned long'
+                ret=sendall(clifd,buf,&strlen(buf),judge);
+                                      ^~~~~~~~~~~~
+./http.h:523:40: error: too many arguments to function call, expected 3, have 4
+        ret=sendall(clifd,buf,&lengths,judge);
+            ~~~~~~~                    ^~~~~
+./http.h:44:1: note: 'sendall' declared here
+int sendall(int fd,char *buf,int *len);        //remember turn to next line by "\n"   
+^
+./http.h:531:31: error: cannot take the address of an rvalue of type 'unsigned long'
+        ret=sendall(clifd,buf,&strlen(buf),judge);
+                              ^~~~~~~~~~~~
+./http.h:540:40: error: too many arguments to function call, expected 3, have 4
+        ret=sendall(clifd,buf,&lengths,judge);
+            ~~~~~~~                    ^~~~~
+./http.h:44:1: note: 'sendall' declared here
+int sendall(int fd,char *buf,int *len);        //remember turn to next line by "\n"   
+^
+./http.h:551:44: error: too many arguments to function call, expected 3, have 4
+            ret=sendall(clifd,buf,&lengths,judge);
+                ~~~~~~~                    ^~~~~
+./http.h:44:1: note: 'sendall' declared here
+int sendall(int fd,char *buf,int *len);        //remember turn to next line by "\n"   
+^
+./http.h:563:15: error: array type 'char [1024]' is not assignable
+           buf=dirents->d_name;
+           ~~~^
+./http.h:565:43: error: too many arguments to function call, expected 3, have 4
+           ret=sendall(clifd,buf,&lengths,judge);
+               ~~~~~~~                    ^~~~~
+./http.h:44:1: note: 'sendall' declared here
+int sendall(int fd,char *buf,int *len);        //remember turn to next line by "\n"   
+^
+./http.h:574:34: error: cannot take the address of an rvalue of type 'unsigned long'
+           ret=sendall(clifd,buf,&strlen(buf),judge);
+                                 ^~~~~~~~~~~~
+./http.h:589:31: error: cannot take the address of an rvalue of type 'unsigned long'
+        ret=sendall(clifd,buf,&strlen(buf),judge);
+                              ^~~~~~~~~~~~
+./http.h:596:178: error: use of undeclared identifier 'argumet'; did you mean 'argument'?
+        sprintf(buf,"</table><font color=\"CC0000\" size=+2>You visit resources '%s' be under an embargo，Please contact the administrator to solve!</font></body></html& gt;", argumet+2);
+                                                                                                                                                                                ^~~~~~~
+                                                                                                                                                                                argument
+./http.h:477:26: note: 'argument' declared here
+void Get(int clifd,char *argument,int judge)
+                         ^
+./http.h:597:31: error: cannot take the address of an rvalue of type 'unsigned long'
+        ret=sendall(clifd,buf,&strlen(buf),judge);
+                              ^~~~~~~~~~~~
+./http.h:610:27: error: use of undeclared identifier 'arg'
+    if(NULL!=(temp=strchr(arg,'.')))
+                          ^
+./http.h:615:6: error: conflicting types for 'sendmsgs'
+void sendmsgs(int clifd,char *type,char *argument,int length,int judge)
+     ^
+./http.h:62:6: note: previous declaration is here
+void sendmsgs(int clifd,char *type,char *argument,int length);
+     ^
+./http.h:623:32: error: use of undeclared identifier 'error_bit'; did you mean 'err_bit'?
+    sendhead(clifd,type,length,error_bit);
+                               ^~~~~~~~~
+                               err_bit
+./http.h:617:9: note: 'err_bit' declared here
+    int err_bit=0;
+        ^
+./http.h:627:29: error: cannot take the address of an rvalue of type 'unsigned long'
+        n=sendall(clifd,buf,&strlen(buf),judge);
+                            ^~~~~~~~~~~~
+./http.h:657:94: warning: format specifies type 'char *' but the argument has type '<dependent type>' [-Wformat]
+    sprintf(buf,"HTTP/1.1 %s\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n",content_type,req[error_bit],length);
+                                              ~~                                             ^~~~~~~~~~~~~~
+fatal error: too many errors emitted, stopping now [-ferror-limit=]
+5 warnings and 20 errors generated.

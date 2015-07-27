@@ -41,23 +41,22 @@ void infomsg(char *msg);    //send the proper message not in the backgroud
 int make_socket(int sockfd);          //The sockfd is made to socket,bind,listen and return 
 char *get_defaultip();				  //If you didn't choose a ip-address,it's will get the default ip-address 
 
-int sendall(int fd,char *buf,int *len);        //remember turn to next line by "\n"   
-void daemons(void);
+int sendall(int fd,char *buf,int *len,int judge);        //remember turn to next line by "\n";
 void file_not_found(int clifd,char *args);
 void daytime(void);//report time when you start the server!!!!
 int openssl(int sockfd);
 void errorfunc(char *msg);
 void infofunc(char *msg);
 void ssl_init(void );
-int setnonblock(int fd);
+void setnonblock(int fd);
 void addfd(int epollfd,int fd);
 void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int listenfds);//switch to LT mode
-void getinfomation(int clifd);
-void echo_command(int clifd,char *command,char *argument,char *buf);
-void Get(int clifd,char *argument);
-void Head(int clifd,char *argument);
-void Options(int clifd);
-void Post(int clifd,char *argument,char *buf); 
+void getinfomation(int clifd,int judge);
+void echo_command(int clifd,char *command,char *argument,char *buf,int judge);
+void Get(int clifd,char *argument,int judge);
+void Head(int clifd,char *argument,int judge);
+void Options(int clifd,int judge);
+void Post(int clifd,char *argument,char *buf,int judge); 
 char *file_type(char *argument);
 void sendmsgs(int clifd,char *type,char *argument,int length);
 void sendhead(int clifd,char *type,int length,int error_bit);
@@ -67,11 +66,22 @@ void tpool_destroy();
 int tpool_create(int thr_num);
 int tpool_add_work(void *(*routine)(void *),void *arg);
 void* thread_routine(void *arg);
-void *func(void *arg);
-int make_ssl_socket(sockfd);
+void *func1(void *arg);
+void *func2(void *arg);
+void *func3(void *arg);
+int make_ssl_socket(int sockfd);
 
 int ssl_number=0;
-
+char buf[MAXBUF+1];
+char *ip=NULL;
+char *_log=NULL;  
+char *dirroot=NULL;
+int port=0;
+int daemon_check=0; // -D option
+int logfd=0;  
+char *errno_q=NULL;
+char *req[3]={"200 OK","500 Internal Server Error","404 Not Found"};
+int lengths;
 typedef struct tpool_work
 {
     void* (*routine)(void *);
@@ -86,7 +96,7 @@ typedef struct
     pthread_t *thr_id;
     tpool_work_t *queue_head;       
     pthread_cond_t queue_ready;      
-    pthrad_mutex_t queue_lock;
+    pthread_mutex_t queue_lock;
 }tpool_t;
 
 typedef struct
@@ -107,7 +117,7 @@ static tpool_t *tpool=NULL;
 SSL_CTX *ctx; 
 
 
-static void* thread_routine(void *arg)
+void* thread_routine(void *arg)
 {
     tpool_work_t *work;
     while(1)
@@ -119,7 +129,7 @@ static void* thread_routine(void *arg)
         }
         if(tpool->shutdown)
         {
-            pthread_mutex_unlock(&tpoll->queue_lock);
+            pthread_mutex_unlock(&tpool->queue_lock);
             pthread_exit(NULL);
         } 
         work=tpool->queue_head;
@@ -141,7 +151,7 @@ void daemons(void)
 		exit(0);
 	
 	if(-1==setsid())
-		derrormsg();
+		derrormsg("setsid error!");
 	
 	if(0!=fork())
 		exit(0);
@@ -152,9 +162,9 @@ void daemons(void)
 	close(STDIN_FILENO);
 	close(STDERR_FILENO);
 	
-	int fd=dup("/dev/null");
+	int fd=open("/dev/null",O_RDONLY);
 	dup2(fd,STDOUT_FILENO);
-	dup2(fd,STDERR_NO);
+	dup2(fd,STDERR_FILENO);
 }
 
 void daytime(void)
@@ -172,20 +182,22 @@ void daytime(void)
 	cli_address.sin_port=htons(13);
 	cli_address.sin_family=AF_INET;
 	
-	if(-1==connect(sockfd,(struct sockaddr *)&cli_address,sizeof(sockaddr_in)))
+	if(-1==connect(sockfd,(struct sockaddr *)&cli_address,sizeof(struct sockaddr_in)))
 		errormsg("when daytime connect error!");
-	
+	int n=0;
 	while((n=read(sockfd,recvnum,MAXBUF))>0)
 		{
-			sendall(logfd,recvnum,strlen(recvnum));		
-			sendall(STDOUT_FILENO,recvnum,strlen(recvnum);
+            lengths=strlen(recvnum);
+			sendall(logfd,recvnum,&lengths);
+            lengths=strlen(recvnum);
+			sendall(STDOUT_FILENO,recvnum,&lengths);
 		}	
 	if(n<0)
 		errormsg("when daytime output error!");
 	close(sockfd);
 }
 
-int sendall(int fd,char *buf,int *len) 
+int sendall(int fd,char *buf,int *len,int judge) 
 {
 	int n;
 	int total=0;
@@ -205,37 +217,46 @@ int sendall(int fd,char *buf,int *len)
 void derrormsg(char *msg)
 {
 	errno_q=strerror(errno);
-	sendall(logfd,errno_q,&strlen(errno_q));
-	sendall(logfd,msg,&strlen(msg));
+	lengths=strlen(errno_q);
+    sendall(logfd,errno_q,&lengths);
+    lengths=strlen(msg);
+	sendall(logfd,msg,&lengths);
 	abort();
 }
 
 void errormsg(char *msg)
 {
-	errno_q=strerror(errno);	
-	sendall(logfd,errno_q,&strlen(errno_q));
-	sendall(logfd,msg,&strlen(msg));
-	sendall(STDOUT_FILENO,errno_q,&strlen(errno_q));
-	sendall(STDOUT_FILENO,msg,&strlen(msg));
+	errno_q=strerror(errno);
+    lengths=strlen(errno_q);
+	sendall(logfd,errno_q,&lengths);
+    lengths=strlen(msg);
+	sendall(logfd,msg,&lengths);
+    lengths=strlen(errno_q);
+	sendall(STDOUT_FILENO,errno_q,&lengths);
+    lengths=strlen(msg);
+	sendall(STDOUT_FILENO,msg,&lengths);
 	abort();
 }
 
 void infomsg(char *msg)
 {
-	sendall(logfd,msg,&strlen(msg));
-	sendall(STDOUT_FILENO,msg,&strlen(msg));
+    lengths=strlen(msg);
+	sendall(logfd,msg,&lengths);
+    lengths=strlen(msg);
+	sendall(STDOUT_FILENO,msg,&lengths);
 }
 
 void dinfomsg(char *msg)
 {
-	sendall(logfd,msg,&strlen(msg));
+    lengths=strlen(msg);
+	sendall(logfd,msg,&lengths);
 }
 
 int make_socket(int sockfd)
 {
 	struct sockaddr_in servaddr;
 	bzero(&servaddr,sizeof(struct sockaddr_in));
-	if((sockfd=socket(AF_INET,SOCK_STREAM,0)<0)
+	if((sockfd=socket(AF_INET,SOCK_STREAM,0)<0))
 		errorfunc("socket error!");	
 	if(0==port)
 		port=DEFAULTPORT;
@@ -302,11 +323,10 @@ void getoption(int argc,char **argv)  // hard to know how to use getopt()
 		{"port",1,NULL,'P'},
 		{"dirroot",1,NULL,'D'},
 		{"daemon",0,NULL,'B'},
-		{"tls",0,NULL,'T'},
 		{0,0,0,0},
 		};
 	char *l_opt_arg=NULL;
-	char *const short_options="I:L:P:D:BT";	
+	char *const short_options="I:L:P:D:B";	
 	while((c=getopt_long(argc,argv,short_options,long_options,NULL))!=-1)
 		switch(c)
 		{
@@ -328,9 +348,6 @@ void getoption(int argc,char **argv)  // hard to know how to use getopt()
 			case 'D':
 				l_opt_arg=optarg;
 				dirroot=l_opt_arg;	
-				break;
-			case 'T':
-				tls_check=1;
 				break;
 		}
 }
@@ -375,7 +392,7 @@ void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int liste
             arg=(sign2 *)malloc(sizeof(sign2));
             arg->listenfd=listenfds;
             arg->epollfd=epollfd;
-            tpool_add_work(fun3,(void *)arg);
+            tpool_add_work(func3,(void *)arg);
         }
 		else if(events[i].events & EPOLLIN)
         {
@@ -388,8 +405,8 @@ void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int liste
             sign *arg=NULL;
             arg=(sign *)malloc(sizeof(sign));
             arg->type=judge;
-            arg->clifd=clifd;
-            tpool_add_work(func,(void *)sign);
+            arg->clifd=sockfd;
+            tpool_add_work(func1,(void *)arg);
         }        
         else
 			infofunc("something else happened!");
@@ -404,7 +421,7 @@ void getinfomation(int clifd,int judge)
 	char argument[MAXBUF];
 	char mes[MAXBUF];
 	bzero(buf,MAXBUF);
-	bzero(argument,MAXBUF];
+	bzero(argument,MAXBUF);
 	bzero(command,10);
 	bzero(mes,MAXBUF);
 	
@@ -421,7 +438,8 @@ void getinfomation(int clifd,int judge)
 			infomsg(mes);
 		}	
 	else
-		command="ERROR";
+        bzero(command,10);
+		strcpy(command,"ERROR");
         echo_command(clifd,command,argument,buf,judge);
 }
 
@@ -446,7 +464,7 @@ void echo_command(int clifd,char *command,char *argument,char *buf,int judge)
 	}	
 	else if(0==strcmp(command,"head"))
 	{
-		Head(clifd,argument,judge)
+		Head(clifd,argument,judge);
 	}
 	else if(0==strcmp(command,"ERROR"))
 	{
@@ -467,12 +485,13 @@ void Get(int clifd,char *argument,int judge)
 	{
 		if((errno==ENOENT)||(errno==ENOTDIR))
            senderror(clifd,2);
-		else if
+		else
         {
         sprintf(buf,"HTTP/1.1 200 OK\r\nServer:ywang\r\nContent-Type:text/html;charset=UTF-8\r\n\r\n<html><head><title>%d - %s</title></head>"
 			"<body><font size=+4>Ywang's server</font><br><hr width=\"100%%\"><br><center>"
-			"<table border cols=3 width=\"100%%\">",errno,strerror(errno));			
-		ret=sendall(clifd,buf,&strlen(buf),judge);
+			"<table border cols=3 width=\"100%%\">",errno,strerror(errno));	
+        lengths=strlen(buf);    
+		ret=sendall(clifd,buf,&lengths,judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -480,7 +499,8 @@ void Get(int clifd,char *argument,int judge)
 			}
 		bzero(buf,MAXBUF);	
 		sprintf(buf,"</table><font color=\"CC0000\" size=+2>Please contact the administrator consulting why appear as follows error message：\n%s %s</font></body></html>",argument+2,strerror(errno));
-		ret=sendall(clifd,buf,&strlen(buf),judge);
+		lengths=strlen(buf);
+        ret=sendall(clifd,buf,&lengths,judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error");	
@@ -499,8 +519,9 @@ void Get(int clifd,char *argument,int judge)
         bzero(buf,MAXBUF);
         sprintf(buf,"HTTP/1.1 200 OK\r\n""Server:ywang\r\nContent-Type:text/html; charset=UTF-8\r\n\r\n<html><head><title>%s</title></head>"  
              "<body><font size=+4>Linux directory access server</font><br><hr width=\"100%%\"><br><center>"  
-             "<table border cols=3 width=\"100%%\">", argument+2);  
-        ret=sendall(clifd,buf,&strlen(buf),judge);
+             "<table border cols=3 width=\"100%%\">", argument+2); 
+        lengths=strlen(buf);
+        ret=sendall(clifd,buf,&lengths,judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -508,25 +529,28 @@ void Get(int clifd,char *argument,int judge)
 			}
 		bzero(buf,MAXBUF);	
 		sprintf(buf,"<caption><font size=+3>dir %s</font></caption>\n",argument+2);
-        ret=sendall(clifd,buf,&strlen(buf),judge);
+        lengths=strlen(buf);
+        ret=sendall(clifd,buf,&lengths,judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
 				return ;
 			}
 		bzero(buf,MAXBUF);
-		sprintf(buf,"<tr><td>name</td><td>大小</td><td>change time</td></tr>\n");				
-        ret=sendall(clifd,buf,&strlen(buf),judge);
+		sprintf(buf,"<tr><td>name</td><td>大小</td><td>change time</td></tr>\n");
+        lengths=strlen(buf);
+        ret=sendall(clifd,buf,&lengths,judge);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
-				return ;
-			}
+                return ;
+            }
 		bzero(buf,MAXBUF);
-		if(0==dir)
+		if(NULL==dir)
 		{
 			sprintf(buf,"</table><font color=\"CC0000\" size=+2>%s</font></body></html>", strerror(errno));
-			ret=sendall(clifd,buf,&strlen(buf),judge);
+			lengths=strlen(buf);
+            ret=sendall(clifd,buf,&lengths,judge);
 			if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -538,8 +562,9 @@ void Get(int clifd,char *argument,int judge)
         {
            if((0==strcmp(dirents->d_name,","))||(0==strcmp(dirents->d_name,",,")))
             continue;
-           buf=dirents->d_name;
-           ret=sendall(clifd,buf,&strlen(buf),judge);
+           strcpy(buf,dirents->d_name);
+           lengths=strlen(buf);
+           ret=sendall(clifd,buf,&lengths,judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -548,7 +573,8 @@ void Get(int clifd,char *argument,int judge)
            bzero(buf,MAXBUF); 
         }
         sprintf(buf,"</table></body></html>");
-           ret=sendall(clifd,buf,&strlen(buf),judge);
+           lengths=strlen(buf);
+           ret=sendall(clifd,buf,&lengths,judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -563,7 +589,8 @@ void Get(int clifd,char *argument,int judge)
         	"<html><head><title>permission denied</title></head>"  
             "<body><font size=+4>Linux directory access server</font><br><hr width=\"100%%\"><br><center>"  
              "<table border cols=3 width=\"100%%\">");
-        ret=sendall(clifd,buf,&strlen(buf),judge);
+        lengths=strlen(buf);
+        ret=sendall(clifd,buf,&lengths,judge);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
