@@ -20,6 +20,7 @@
 #include <openssl/ssl.h>
 #include <signal.h> 
 #include <pthread.h>
+#include <netdb.h>
 
 #ifndef HTTP_SERVER_H__
 #define HTTP_SERVER_H__
@@ -59,8 +60,8 @@ void Options(int clifd,int judge);
 void Post(int clifd,char *argument,char *buf,int judge); 
 char *file_type(char *argument);
 void sendmsgs(int clifd,char *type,char *argument,int length,int judge);
-void sendhead(int clifd,char *type,int length,int error_bit);
-void senderror(int clifd,int bit);
+void sendhead(int clifd,char *type,int length,int err_bit,int judge);
+void senderror(int clifd,int bit,int judge);
 
 void tpool_destroy();
 int tpool_create(int thr_num);
@@ -85,7 +86,7 @@ typedef struct tpool_work
 {
     void* (*routine)(void *);
     void *arg;
-    struct tpoll_work *next;   
+    struct tpool_work *next;   
 }tpool_work_t;
 
 typedef struct
@@ -113,8 +114,7 @@ typedef struct
 static int tlsfd[1000];
 static tpool_t *tpool=NULL;
 
-SSL_CTX *ctx; 
-
+pthread_mutex_t mutex_all; 
 
 void* thread_routine(void *arg)
 {
@@ -168,6 +168,7 @@ void daemons(void)
 
 void daytime(void)
 {
+    int lengths;
 	int ret;
 	struct sockaddr_in cli_address;
 	int sockfd;
@@ -187,9 +188,9 @@ void daytime(void)
 	while((n=read(sockfd,recvnum,MAXBUF))>0)
 		{
             lengths=strlen(recvnum);
-			sendall(logfd,recvnum,&lengths);
+			sendall(logfd,recvnum,&lengths,0);
             lengths=strlen(recvnum);
-			sendall(STDOUT_FILENO,recvnum,&lengths);
+			sendall(STDOUT_FILENO,recvnum,&lengths,0);
 		}	
 	if(n<0)
 		errormsg("when daytime output error!");
@@ -215,40 +216,44 @@ int sendall(int fd,char *buf,int *len,int judge)
 
 void derrormsg(char *msg)
 {
+    int lengths;
 	errno_q=strerror(errno);
 	lengths=strlen(errno_q);
-    sendall(logfd,errno_q,&lengths);
+    sendall(logfd,errno_q,&lengths,0);
     lengths=strlen(msg);
-	sendall(logfd,msg,&lengths);
+	sendall(logfd,msg,&lengths,0);
 	abort();
 }
 
 void errormsg(char *msg)
 {
+    int lengths;
 	errno_q=strerror(errno);
     lengths=strlen(errno_q);
-	sendall(logfd,errno_q,&lengths);
+	sendall(logfd,errno_q,&lengths,0);
     lengths=strlen(msg);
-	sendall(logfd,msg,&lengths);
+	sendall(logfd,msg,&lengths,0);
     lengths=strlen(errno_q);
-	sendall(STDOUT_FILENO,errno_q,&lengths);
+	sendall(STDOUT_FILENO,errno_q,&lengths,0);
     lengths=strlen(msg);
-	sendall(STDOUT_FILENO,msg,&lengths);
+	sendall(STDOUT_FILENO,msg,&lengths,0);
 	abort();
 }
 
 void infomsg(char *msg)
 {
+    int lengths;
     lengths=strlen(msg);
-	sendall(logfd,msg,&lengths);
+	sendall(logfd,msg,&lengths,0);
     lengths=strlen(msg);
-	sendall(STDOUT_FILENO,msg,&lengths);
+	sendall(STDOUT_FILENO,msg,&lengths,0);
 }
 
 void dinfomsg(char *msg)
 {
+    int lengths;
     lengths=strlen(msg);
-	sendall(logfd,msg,&lengths);
+	sendall(logfd,msg,&lengths,0);
 }
 
 int make_socket(int sockfd)
@@ -417,7 +422,7 @@ void getinfomation(int clifd,int judge)
 	char buf[MAXBUF];
 	int recvnum;
 	char command[10];
-	char argument[MAXBUF];
+    char argument[MAXBUF];
 	char mes[MAXBUF];
 	bzero(buf,MAXBUF);
 	bzero(argument,MAXBUF);
@@ -474,6 +479,7 @@ void echo_command(int clifd,char *command,char *argument,char *buf,int judge)
 
 void Get(int clifd,char *argument,int judge)
 {
+    int lengths;
 	struct stat info;
 	struct dirent *dirents;
 	DIR *dir;
@@ -483,7 +489,7 @@ void Get(int clifd,char *argument,int judge)
 	if(stat(argument,&info))
 	{
 		if((errno==ENOENT)||(errno==ENOTDIR))
-           senderror(clifd,2);
+           senderror(clifd,2,judge);
 		else
         {
         sprintf(buf,"HTTP/1.1 200 OK\r\nServer:ywang\r\nContent-Type:text/html;charset=UTF-8\r\n\r\n<html><head><title>%d - %s</title></head>"
@@ -509,7 +515,7 @@ void Get(int clifd,char *argument,int judge)
     else if(S_ISREG(info.st_mode))
 	{
        char *type=file_type(argument);
-       sendmsgs(clifd,type,argument,info.st_size);
+       sendmsgs(clifd,type,argument,info.st_size,judge);
     }
     else if(S_ISDIR(info.st_mode))
     {
@@ -596,7 +602,7 @@ void Get(int clifd,char *argument,int judge)
 				return ;
             }       
         bzero(buf,MAXBUF);
-        sprintf(buf,"</table><font color=\"CC0000\" size=+2>You visit resources '%s' be under an embargo，Please contact the administrator to solve!</font></body></html& gt;", argumet+2);
+        sprintf(buf,"</table><font color=\"CC0000\" size=+2>You visit resources '%s' be under an embargo，Please contact the administrator to solve!</font></body></html& gt;", argument+2);
         lengths=strlen(buf);
         ret=sendall(clifd,buf,&lengths,judge);
  		    if(ret==-1)
@@ -618,18 +624,19 @@ char *file_type(char *argument)
 
 void sendmsgs(int clifd,char *type,char *argument,int length,int judge)
 {
+    int lengths;
     int err_bit=0;
     int fd;
     int nbytes,n;
     char buf[MAXBUF];
     if(0>(fd=open(argument,O_RDONLY))) //open maybe dangerous because work_dir's question   
         err_bit=1;
-    sendhead(clifd,type,length,err_bit);
+    sendhead(clifd,type,length,err_bit,judge);
     bzero(buf,MAXBUF);
     while((nbytes=recv(fd,buf,MAXBUF,0))>0) 
     {
         lengths=strlen(buf);
-        n=sendall(clifd,buf,lengths,judge);
+        n=sendall(clifd,buf,&lengths,judge);
         bzero(buf,MAXBUF);
         if(n==-1)
         break;
@@ -637,14 +644,15 @@ void sendmsgs(int clifd,char *type,char *argument,int length,int judge)
     if(nbytes==-1||n==-1)
        { 
            close(fd);
-           senderror(clifd,1); 
+           senderror(clifd,1,judge); 
        }
     if(nbytes==0)
         close(fd);
 }
 
-void sendhead(int clifd,char *type,int length,int err_bit)
+void sendhead(int clifd,char *type,int length,int err_bit,int judge)
 {
+   int lengths;
    char *content_type=NULL;
    if(0==strcmp(type,"html"))
      content_type="text/html";
@@ -660,39 +668,42 @@ void sendhead(int clifd,char *type,int length,int err_bit)
     char buf[MAXBUF];
     bzero(buf,MAXBUF);
     sprintf(buf,"HTTP/1.1 %s\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n",content_type,req[err_bit],length);
-    
-    if(-1==sendall(clifd,buf,&strlen(buf)))
+    lengths=strlen(buf); 
+    if(-1==sendall(clifd,buf,&lengths,judge))
         infofunc("send head error!");
 }
 
-void senderror(int clifd,int bit)//send 404 or 500 error to client
+void senderror(int clifd,int bit,int judge)//send 404 or 500 error to client
 {
+    int lengths;
     char buf[MAXBUF];    
     bzero(buf,MAXBUF);
     sprintf(buf,"HTTP/1.1 %s\r\n\r\nReason: The file/dir you requested is not exist!",req[bit]);
-    if(-1==sendall(clifd,buf,&strlen(buf)))
+    lengths=strlen(buf);
+    if(-1==sendall(clifd,buf,&lengths,judge))
         infofunc("senderror error!");
 }
 
 void Options(int clifd,int judge)
 {
-	char buf[MAXBUF];
+	int lengths;
+    char buf[MAXBUF];
 	bzero(buf,MAXBUF);
 	sprintf(buf,"HTTP/1.1 200 OK\r\nAllow: GET, POST, HEAD, OPTIONS\r\nContent-length: 0\r\n\r\n");
-	ret=sendall(clifd,buf,&strlen(buf),judge);
+	int ret=sendall(clifd,buf,&lengths,judge);
  	if(ret==-1)
-		senderror(clifd,1);    
+		senderror(clifd,1,judge);    
 }
 
-void Post(int clifd,char *argument,char *buf) //cgi
+void Post(int clifd,char *argument,char *buf,int judge) //cgi
 {
 	int num1;
     pid_t pid;
     char ptr1[10];
     char ptr2[10];
-    bzero(ptr,10);
-    bzero(ptr,10);
-    if(-1==sscanf(buf,"\r\n\r\nnum=%d",num1))
+    bzero(ptr1,10);
+    bzero(ptr2,10);
+    if(-1==sscanf(buf,"\r\n\r\nnum=%d",&num1))
         {
             infofunc("Post num error!");
             return;
@@ -710,8 +721,9 @@ void Post(int clifd,char *argument,char *buf) //cgi
     return;   
 }
 
-void Head(int clifd,char *argument)
+void Head(int clifd,char *argument,int judge)
 {	
+    int err_bit;
 	struct stat info;
 	char *type=file_type(argument);
 	if(stat(argument,&info))
@@ -719,7 +731,7 @@ void Head(int clifd,char *argument)
 	else
 		err_bit=0;
 	
-	sendhead(clifd,type,info.st_size,err_bit);
+	sendhead(clifd,type,info.st_size,err_bit,judge);
 }
 
 void ssl_init(void)  //https
@@ -744,9 +756,9 @@ int tpool_create(int thr_num)
     tpool->max_thr_num=thr_num;
     tpool->shutdown=0;
     tpool->queue_head=NULL;
-    if(pthread_mutex_init(tpool->queue_lock,NULL)!=0)
+    if(pthread_mutex_init(&tpool->queue_lock,NULL)!=0)
         errorfunc("mutex init error!");
-    if(pthread_cond_init(tpool->queue_ready,NULL)!=0)
+    if(pthread_cond_init(&tpool->queue_ready,NULL)!=0)
         errorfunc("cond init error!");
     
     tpool->thr_id=(pthread_t *)calloc(thr_num,sizeof(pthread_t));
@@ -806,7 +818,6 @@ int tpool_add_work(void *(*routine)(void *),void *arg)
         infofunc("work error!"); 
         return -1;
     }
-        
     work->routine=routine;
     work->arg=arg;
     work->next=NULL;
@@ -830,33 +841,6 @@ int tpool_add_work(void *(*routine)(void *),void *arg)
 
 }
 
-void *thread_routine
-{
-    tpool_work_t *work;
-    while(1)
-    {
-        pthread_mutex_lock(&tpool->queue_lock);
-        while(!tpool->queue_head&&!tpool->shutdown)
-        {
-            pthread_cond_wait(&tpool->queue_ready,&tpool->queue_lock);
-        }
-        if(tpool->shutdown)       
-            {
-                pthread_mutex_unlock(&tpool->queue_lock);
-                pthread_exit(NULL);
-            }
-        work=(tpool_work_t *)malloc(sizeof(tpool_work_t));
-        work=tpool->queue_head;
-        tpool->queue_head=tpool->queue_head->next;
-        pthread_mutex_unlock(&tpool->queue_lock);
-
-        work->routine(work->arg);
-        free(work);
-    }
-    return NULL;
-}
-
-
 void *func1(void *arg)
 {
     sign *var=(sign *)arg;		    
@@ -868,9 +852,9 @@ void *func1(void *arg)
 
 void *func2(void *arg)
 {
-    arg=(sign2 *)arg;
-    int listenfd=arg->listenfd;
-    int epollfd=arg->epollfd;
+    sign2 *var=(sign2 *)arg;
+    int listenfd=var->listenfd;
+    int epollfd=var->epollfd;
     char buf[MAXBUF];
 	bzero(buf,MAXBUF);
 	struct sockaddr_in cli_address;
@@ -879,17 +863,17 @@ void *func2(void *arg)
 	if(clifd<0)
 	{	
 		infofunc("clifd accept error!");
-		continue;
+		goto end;
 	}
-	sprintf(buf,"connect %s:%d!",inet_ntoa(cli_address.sin_addr.s_addr),ntohs(cli_address.sin_port));		
+	sprintf(buf,"connect %s:%d!",inet_ntoa(cli_address.sin_addr),ntohs(cli_address.sin_port));		
 	addfd(epollfd,clifd);
-	infofunc(buf);   
+	infofunc(buf);
+    end:;
 }
 
 void *func3(void *arg)
 {
         //ssl handshake
-
 
 
 

@@ -1,133 +1,31 @@
 In file included from main.c:1:
-./http.h:136:26: warning: incompatible pointer types assigning to 'tpool_work_t *' (aka 'struct tpool_work *') from 'struct tpoll_work *' [-Wincompatible-pointer-types]
-        tpool->queue_head=tpool->queue_head->next;
-                         ^~~~~~~~~~~~~~~~~~~~~~~~
-./http.h:191:34: error: too few arguments to function call, expected 4, have 3
-                        sendall(logfd,recvnum,&lengths);
-                        ~~~~~~~                       ^
-./http.h:44:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge);        //remember turn to next line by "\n";
-^
-./http.h:193:42: error: too few arguments to function call, expected 4, have 3
-                        sendall(STDOUT_FILENO,recvnum,&lengths);
-                        ~~~~~~~                               ^
-./http.h:44:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge);        //remember turn to next line by "\n";
-^
-./http.h:221:35: error: too few arguments to function call, expected 4, have 3
-    sendall(logfd,errno_q,&lengths);
-    ~~~~~~~                       ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:223:28: error: too few arguments to function call, expected 4, have 3
-        sendall(logfd,msg,&lengths);
-        ~~~~~~~                   ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:231:32: error: too few arguments to function call, expected 4, have 3
-        sendall(logfd,errno_q,&lengths);
-        ~~~~~~~                       ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:233:28: error: too few arguments to function call, expected 4, have 3
-        sendall(logfd,msg,&lengths);
-        ~~~~~~~                   ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:235:40: error: too few arguments to function call, expected 4, have 3
-        sendall(STDOUT_FILENO,errno_q,&lengths);
-        ~~~~~~~                               ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:237:36: error: too few arguments to function call, expected 4, have 3
-        sendall(STDOUT_FILENO,msg,&lengths);
-        ~~~~~~~                           ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:244:28: error: too few arguments to function call, expected 4, have 3
-        sendall(logfd,msg,&lengths);
-        ~~~~~~~                   ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:246:36: error: too few arguments to function call, expected 4, have 3
-        sendall(STDOUT_FILENO,msg,&lengths);
-        ~~~~~~~                           ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:252:28: error: too few arguments to function call, expected 4, have 3
-        sendall(logfd,msg,&lengths);
-        ~~~~~~~                   ^
-./http.h:200:1: note: 'sendall' declared here
-int sendall(int fd,char *buf,int *len,int judge) 
-^
-./http.h:288:21: warning: implicit declaration of function 'gethostbyname' is invalid in C99 [-Wimplicit-function-declaration]
-        if(NULL==(addrinfo=gethostbyname(hostname)))
-                           ^
-./http.h:288:20: warning: incompatible integer to pointer conversion assigning to 'struct hostent *' from 'int' [-Wint-conversion]
-        if(NULL==(addrinfo=gethostbyname(hostname)))
-                          ^~~~~~~~~~~~~~~~~~~~~~~~
-./http.h:290:17: error: incomplete definition of type 'struct hostent'
-        switch(addrinfo->h_addrtype){
-               ~~~~~~~~^
-/usr/include/openssl/bio.h:732:8: note: forward declaration of 'struct hostent'
-struct hostent *BIO_gethostbyname(const char *name);
-       ^
-In file included from main.c:1:
-./http.h:370:9: warning: implicit declaration of function 'epollctl' is invalid in C99 [-Wimplicit-function-declaration]
+./http.h:375:9: warning: implicit declaration of function 'epollctl' is invalid in C99 [-Wimplicit-function-declaration]
         if(-1==epollctl(epollfd,EPOLL_CTL_ADD,fd,&event))
                ^
-./http.h:513:49: error: too few arguments to function call, expected 5, have 4
-       sendmsgs(clifd,type,argument,info.st_size);
-       ~~~~~~~~                                 ^
-./http.h:61:1: note: 'sendmsgs' declared here
-void sendmsgs(int clifd,char *type,char *argument,int length,int judge);
+./http.h:852:1: warning: control reaches end of non-void function [-Wreturn-type]
+}
 ^
-./http.h:600:178: error: use of undeclared identifier 'argumet'; did you mean 'argument'?
-        sprintf(buf,"</table><font color=\"CC0000\" size=+2>You visit resources '%s' be under an embargo，Please contact the administrator to solve!</font></body></html& gt;", argumet+2);
-                                                                                                                                                                                ^~~~~~~
-                                                                                                                                                                                argument
-./http.h:476:26: note: 'argument' declared here
-void Get(int clifd,char *argument,int judge)
-                         ^
-./http.h:615:27: error: use of undeclared identifier 'arg'
-    if(NULL!=(temp=strchr(arg,'.')))
-                          ^
-./http.h:633:29: warning: incompatible integer to pointer conversion passing 'int' to parameter of type 'int *'; take the address with & [-Wint-conversion]
-        n=sendall(clifd,buf,lengths,judge);
-                            ^~~~~~~
-                            &
-./http.h:200:35: note: passing argument to parameter 'len' here
-int sendall(int fd,char *buf,int *len,int judge) 
-                                  ^
-./http.h:663:94: warning: format specifies type 'char *' but the argument has type '<dependent type>' [-Wformat]
-    sprintf(buf,"HTTP/1.1 %s\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n",content_type,req[error_bit],length);
-                                              ~~                                             ^~~~~~~~~~~~~~
-./http.h:663:98: error: use of undeclared identifier 'error_bit'; did you mean 'err_bit'?
-    sprintf(buf,"HTTP/1.1 %s\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n",content_type,req[error_bit],length);
-                                                                                                 ^~~~~~~~~
-                                                                                                 err_bit
-./http.h:647:51: note: 'err_bit' declared here
-void sendhead(int clifd,char *type,int length,int err_bit)
-                                                  ^
-./http.h:665:30: error: cannot take the address of an rvalue of type 'unsigned long'
-    if(-1==sendall(clifd,buf,&strlen(buf)))
-                             ^~~~~~~~~~~~
-./http.h:674:30: error: cannot take the address of an rvalue of type 'unsigned long'
-    if(-1==sendall(clifd,buf,&strlen(buf)))
-                             ^~~~~~~~~~~~
-./http.h:678:6: error: conflicting types for 'Options'
-void Options(int clifd)
-     ^
-./http.h:58:6: note: previous declaration is here
-void Options(int clifd,int judge);
-     ^
-fatal error: too many errors emitted, stopping now [-ferror-limit=]
-6 warnings and 20 errors generated.
+./http.h:873:1: warning: control reaches end of non-void function [-Wreturn-type]
+}
+^
+./http.h:884:8: warning: extra tokens at end of #endif directive [-Wextra-tokens]
+#endif HTTP_SERVER_H__
+       ^
+       //
+./http.h:883:1: warning: control reaches end of non-void function [-Wreturn-type]
+}
+^
+5 warnings generated.
+/tmp/main-db7ee6.o: In function `addfd':
+main.c:(.text+0xcff): undefined reference to `epollctl'
+/tmp/main-db7ee6.o: In function `ssl_init':
+main.c:(.text+0x25f9): undefined reference to `SSL_library_init'
+main.c:(.text+0x2601): undefined reference to `OPENSSL_add_all_algorithms_noconf'
+main.c:(.text+0x2606): undefined reference to `SSL_load_error_strings'
+main.c:(.text+0x260b): undefined reference to `SSLv23_server_method'
+main.c:(.text+0x2613): undefined reference to `SSL_CTX_new'
+/tmp/main-db7ee6.o: In function `tpool_create':
+main.c:(.text+0x27ad): undefined reference to `pthread_create'
+/tmp/main-db7ee6.o: In function `tpool_destroy':
+main.c:(.text+0x289a): undefined reference to `pthread_join'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)

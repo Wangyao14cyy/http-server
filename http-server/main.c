@@ -1,15 +1,4 @@
 #include "http.h"
-
-char buf[MAXBUF+1];
-char *ip=NULL;
-char *_log=NULL;  //-
-char *dirroot=NULL;
-int port=0;
-int daemon_check=0; // -D option
-int logfd=0;  
-char *errno_q=NULL;
-char *req[3]={"200 OK","500 Internal Server Error","404 Not Found"};
-
 extern int errno;
 
 int main(int argc,char **argv)
@@ -35,9 +24,8 @@ int main(int argc,char **argv)
 		errorfunc("sockfd error!");
 	int addrlen = 1;  
     setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&addrlen,sizeof(addrlen));//set the port quickly reuse
-    sockfds=ssl_init(sockfds);
-	struct epoll_events events[MAXEVENTS];//question
-	int epollfd=epoll_create[MAXEVENTS];
+	struct epoll_event events[MAXEVENTS];//question
+	int epollfd=epoll_create(MAXEVENTS);
 	addfd(epollfd,sockfd);
 	chdir("/home/wangyao/web");
 	while(1)
