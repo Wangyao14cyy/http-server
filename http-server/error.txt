@@ -1,31 +1,12 @@
 In file included from main.c:1:
-./http.h:375:9: warning: implicit declaration of function 'epollctl' is invalid in C99 [-Wimplicit-function-declaration]
-        if(-1==epollctl(epollfd,EPOLL_CTL_ADD,fd,&event))
-               ^
-./http.h:852:1: warning: control reaches end of non-void function [-Wreturn-type]
-}
-^
-./http.h:873:1: warning: control reaches end of non-void function [-Wreturn-type]
-}
-^
-./http.h:884:8: warning: extra tokens at end of #endif directive [-Wextra-tokens]
+./http.h:742:2: error: use of undeclared identifier 'ctx'
+        ctx = SSL_CTX_new(SSLv23_server_method());
+        ^
+./http.h:743:5: error: use of undeclared identifier 'ctx'
+        if(ctx==NULL)
+           ^
+./http.h:883:8: warning: extra tokens at end of #endif directive [-Wextra-tokens]
 #endif HTTP_SERVER_H__
        ^
        //
-./http.h:883:1: warning: control reaches end of non-void function [-Wreturn-type]
-}
-^
-5 warnings generated.
-/tmp/main-db7ee6.o: In function `addfd':
-main.c:(.text+0xcff): undefined reference to `epollctl'
-/tmp/main-db7ee6.o: In function `ssl_init':
-main.c:(.text+0x25f9): undefined reference to `SSL_library_init'
-main.c:(.text+0x2601): undefined reference to `OPENSSL_add_all_algorithms_noconf'
-main.c:(.text+0x2606): undefined reference to `SSL_load_error_strings'
-main.c:(.text+0x260b): undefined reference to `SSLv23_server_method'
-main.c:(.text+0x2613): undefined reference to `SSL_CTX_new'
-/tmp/main-db7ee6.o: In function `tpool_create':
-main.c:(.text+0x27ad): undefined reference to `pthread_create'
-/tmp/main-db7ee6.o: In function `tpool_destroy':
-main.c:(.text+0x289a): undefined reference to `pthread_join'
-clang: error: linker command failed with exit code 1 (use -v to see invocation)
+1 warning and 2 errors generated.

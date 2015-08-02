@@ -11,7 +11,7 @@ int main(int argc,char **argv)
 	if(NULL==_log)
 		logfd=open(DEFAULTLOG,O_WRONLY | O_APPEND | O_CREAT);
 	else
-		logfd=open(_log,O_WRONLY | O_CREAT | O_APPEND);
+		logfd=open(_log,O_WRONLY | O_CREAT | O_APPENDmZ;
 	
 	daytime();
 	int sockfd,sockfds;
@@ -20,13 +20,16 @@ int main(int argc,char **argv)
 	signal(SIGPIPE,SIG_IGN);
 	signal(SIGCHLD, SIG_IGN);
 	sockfd=make_socket(sockfd);
-	if(sockfd<0)
+    sockfds=make_socket_ssl(sockfds);
+	if(sockfd<0||sockfds<0)
 		errorfunc("sockfd error!");
 	int addrlen = 1;  
     setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&addrlen,sizeof(addrlen));//set the port quickly reuse
-	struct epoll_event events[MAXEVENTS];//question
+    setsockopt(sockfds,SOL_SOCKET,SO_REUSEADDR,&addrlen,sizeof(addrlen));
+    struct epoll_event events[MAXEVENTS];//question
 	int epollfd=epoll_create(MAXEVENTS);
 	addfd(epollfd,sockfd);
+    addfd(epollfd,sockfds);
 	chdir("/home/wangyao/web");
 	while(1)
 	{

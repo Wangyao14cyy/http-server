@@ -48,7 +48,7 @@ void daytime(void);//report time when you start the server!!!!
 int openssl(int sockfd);
 void errorfunc(char *msg);
 void infofunc(char *msg);
-void ssl_init(void );
+void ssl_init(SSL_CTX *ctx);
 void setnonblock(int fd);
 void addfd(int epollfd,int fd);
 void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int listenfds);//switch to LT mode
@@ -70,7 +70,7 @@ void* thread_routine(void *arg);
 void *func1(void *arg);
 void *func2(void *arg);
 void *func3(void *arg);
-int make_ssl_socket(int sockfd);
+int make_socket_ssl(int sockfds);
 
 int ssl_number=0;
 char buf[MAXBUF+1];
@@ -265,12 +265,13 @@ int make_socket(int sockfd)
 	if(0==port)
 		port=DEFAULTPORT;
 	if(NULL==ip)
-	ip=get_defaultip();
-	
+	    char *ip_temp=get_defaultip();
+	else
+        char *ip_temp=ip;
 	servaddr.sin_family=AF_INET;
 	servaddr.sin_port=htons(port);
 	
-	if(1!=inet_pton(AF_INET,ip,(void *)&servaddr))
+	if(1!=inet_pton(AF_INET,ip_temp,(void *)&servaddr))
 		errorfunc("inet_pton error!");
 	if(-1==bind(sockfd,(struct sockaddr *)&servaddr,sizeof(struct sockaddr_in)))
 		errorfunc("bind error!");	
@@ -371,7 +372,7 @@ void addfd(int epollfd,int fd)
 	struct epoll_event event;
 	event.data.fd=fd;
 	event.events=EPOLLIN;
-	if(-1==epollctl(epollfd,EPOLL_CTL_ADD,fd,&event))
+	if(-1==epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&event))
 		errorfunc("epollctl error!");
 	setnonblock(fd);
 }
@@ -734,16 +735,52 @@ void Head(int clifd,char *argument,int judge)
 	sendhead(clifd,type,info.st_size,err_bit,judge);
 }
 
-void ssl_init(void)  //https
+void ssl_init(SSL_CTX *ctx)  //https
 {
 	SSL_library_init();
 	OpenSSL_add_all_algorithms();
 	SSL_load_error_strings();
-	ctx = SSL_CTX_new(SSLv23_server_method());
+    ctx=SSL_CTX_new(SSLv23_server_method());    
+    SSL_CTX_new(SSLv23_server_method());
 	if(ctx==NULL)
 	{
 		errorfunc("ssl_init error!");
 	}
+    if(SSL_CTK_use_PrivateKey_file(ctx,,SSL_FILETYPE_PEM)<=0)
+    {
+        errorfunc("ssl_init_private_key error!");
+    }
+    if(!SSL_CTX_check_private_key(ctx)){
+        errorfunc("ssl_check_private error!");
+    }
+}
+
+int make_socket_ssl(int sockfds)
+{
+    sockfds=socket(AF_INET,SOCK_STREAM,0);
+    struct sockaddr_in serv_addr;
+    if(-1==sockfd)
+    {
+        errorfunc("sockfds socket error!");
+    }   
+    bzero(&serv_addr,sizeof(sockaddr_in));  
+    if(NULL==ip)
+    char *ip_temp=get_defaultip();
+    else 
+    char *ip_temp=ip;
+    int port_temp=443;
+    serv_addr.sin_family=AF_INET;
+    serv_addr.sin_port=htons(port_temp);
+    serv_addr.sin_addr.s_addr=inet_addr(ip);
+    if(-1==bind(sockfds,(struct sockaddr*)&serv_addr,sizeof(struct sockaddr)))
+    {
+        errorfunc("bind ssl error!");
+    }
+    if(-1==listen(sockfds,DEFAULTBACKLOG))
+    {
+        errorfunc("listen ssl error!");
+    }
+    return sockfds;
 }
 
 int tpool_create(int thr_num)
