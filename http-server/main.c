@@ -3,6 +3,7 @@ extern int errno;
 
 int main(int argc,char **argv)
 {
+    extern pthread_mutex_t mutex_all;
 	printf("Http server welcome you!\n");
     tpool_create(10);	
 	if(1!=argc)
@@ -40,7 +41,9 @@ int main(int argc,char **argv)
 	}
     close(sockfds);
 	close(sockfd);
+    close(epollfd);
     sleep(10);
     tpool_destroy();
+    SSL_CTX_free(ctx);         
 	exit(0);
 }

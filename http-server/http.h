@@ -111,10 +111,10 @@ typedef struct
     int epollfd;
 }sign2;
 
-static int tlsfd[1000];
+static SSL* tlsfd[1000];
 static tpool_t *tpool=NULL;
 
-pthread_mutex_t mutex_all; 
+pthread_mutex_t mutex_all=PTHREAD_MUTEX_INITIALIZER; 
 
 void* thread_routine(void *arg)
 {
@@ -910,11 +910,30 @@ void *func2(void *arg)
 
 void *func3(void *arg)
 {
-        //ssl handshake
-
-
-
-
-
+    sign2 *var=(sign2 *)arg;    //ssl handshake
+    int listenfds=var->listenfd;
+    int epollfd=var->epollfd;
+    char buf[MAXBUF];
+    bzero(buf,MAXBUF);
+    struct sockaddr_in cli_address;
+    SSL *ssl;
+    int clifd;
+    if(-1==(clifd=accept(listenfds,(struct sockaddr *)&cli_address,&sizeof(struct sockaddr))))
+    {
+        infofunc("ssl clifd accept error!");
+        goto end;
+    }
+    ssl=SSL_nex(ssl);
+    SSL_set_fd(ssl,clifd);
+    if(-1==SSL_accept(ssl))
+    {
+        infofunc("ssl_accept error!");
+        goto end;
+    }
+    pthread_mutex_lock(); 
+    tlsfd[ssl_number]=ssl;
+    ssl_number+=1;
+    pthread_mutex_unlock();
+    end:;
 }
 #endif HTTP_SERVER_H__
