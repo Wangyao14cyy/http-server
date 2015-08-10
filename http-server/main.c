@@ -7,8 +7,7 @@ int main(int argc,char **argv)
 	printf("Http server welcome you!\n");
     tpool_create(10);	
 	if(1!=argc)
-	getoption(argc,argv);//It's hard to learn how to use it 	
-	SSL_CTX *ctx; 
+	getoption(argc,argv);//It's hard to learn how to use it  
 	if(NULL==_log)
 		logfd=open(DEFAULTLOG,O_WRONLY | O_APPEND | O_CREAT);
 	else
@@ -29,8 +28,8 @@ int main(int argc,char **argv)
     setsockopt(sockfds,SOL_SOCKET,SO_REUSEADDR,&addrlen,sizeof(addrlen));
     struct epoll_event events[MAXEVENTS];//question
 	int epollfd=epoll_create(MAXEVENTS);
-	addfd(epollfd,sockfd);
-    addfd(epollfd,sockfds);
+	addfd(epollfd,sockfd,0);
+    addfd(epollfd,sockfds,0);
 	chdir("/home/wangyao/web");
 	while(1)
 	{

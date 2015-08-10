@@ -52,7 +52,7 @@ void ssl_init(SSL_CTX *ctx);
 void setnonblock(int fd);
 void addfd(int epollfd,int fd);
 void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int listenfds);//switch to LT mode
-void getinfomation(int clifd,int judge);
+void getinfomation(Channel *);
 void echo_command(int clifd,char *command,char *argument,char *buf,int judge);
 void Get(int clifd,char *argument,int judge);
 void Head(int clifd,char *argument,int judge);
@@ -72,7 +72,6 @@ void *func2(void *arg);
 void *func3(void *arg);
 int make_socket_ssl(int sockfds);
 
-int ssl_number=0;
 char buf[MAXBUF+1];
 char *ip=NULL;
 char *_log=NULL;  
@@ -82,10 +81,13 @@ int daemon_check=0; // -D option
 int logfd=0;  
 char *errno_q=NULL;
 char *req[3]={"200 OK","500 Internal Server Error","404 Not Found"};
+SSL_CTX ctx;
+
 typedef struct tpool_work
 {
     void* (*routine)(void *);
     void *arg;
+    
     struct tpool_work *next;   
 }tpool_work_t;
 
@@ -99,11 +101,6 @@ typedef struct
     pthread_mutex_t queue_lock;
 }tpool_t;
 
-typedef struct
-{
-    int clifd;
-    int type;
-}sign;
 
 typedef struct
 {
@@ -111,7 +108,21 @@ typedef struct
     int epollfd;
 }sign2;
 
-static SSL* tlsfd[1000];
+typedef struct tlsfd
+{
+    SSL* ssl;    
+    struct tlsfd *next;
+    struct tlsfd *previous;
+}tlsfd_t;
+
+
+typedef struct Channel
+{
+    int fd;        
+    SSL* ssl;
+    int judge;
+}Channel;
+
 static tpool_t *tpool=NULL;
 
 pthread_mutex_t mutex_all=PTHREAD_MUTEX_INITIALIZER; 
@@ -265,6 +276,7 @@ int make_socket(int sockfd)
 	if(0==port)
 		port=DEFAULTPORT;
 	if(NULL==ip)
+
 	    char *ip_temp=get_defaultip();
 	else
         char *ip_temp=ip;
@@ -361,29 +373,55 @@ void setnonblock(int fd)
 {
 	int old_option=fcntl(fd,F_GETFL);
 	if(old_option==-1)
-		errorfunc("fcntl error!");
+		    errorfunc("fcntl error!");
 	int new_option=old_option | O_NONBLOCK;
 	if(-1==fcntl(fd,F_SETFL,new_option))
 			errorfunc("fcntl error!");
 }
 
-void addfd(int epollfd,int fd)
+int addfd(int epollfd,int fd,int judge)
 {
 	struct epoll_event event;
-	event.data.fd=fd;
-	event.events=EPOLLIN;
-	if(-1==epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&event))
-		errorfunc("epollctl error!");
-	setnonblock(fd);
+    
+    if(0!=judge)
+    {
+        SSL *ssl_=SSL_new(ctx);   
+        SSL_set_fd(ssl_,fd);
+        if(-1==SSL_accept(ssl))
+           return -1;
+        Channel *var=(Channel *)malloc(sizeof(Channel));
+        var->fd=fd;
+        var->ssl=ssl_;
+        var->judge=judge;
+        event.events=EPOLLIN | EPOLLOUT | EPOLLHUP;
+        event.data.ptr=var;
+        if(-1==epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&event))
+            infofunc("epollctl ssl error!");
+        setnonblock(fd);
+    }
+    else
+	{
+        Channel *var=(Channel *)malloc(sizeof(Channel));
+        var->fd=fd;
+        var->judge=judge;
+        var->ssl=NULL;
+        event.data.ptr=var;
+	    event.events=EPOLLIN | EPOLLHUP | EPOLLOUT;
+	    if(-1==epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&event))
+		    infofunc("epollctl error!");
+	    setnonblock(fd);
+    }
+    return 0;
 }
 
 void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int listenfds)
 {
-    int judge=0;
 	for(int i=0;i<number;i++)
 	{
-		int sockfd=events[i].data.fd;
-		if(sockfd==listenfd)
+        Channel *var=(Channel *)event.data.ptr;
+		int sockfd=var->fd;
+		
+        if(sockfd==listenfd)
 		{
             sign2 *arg=NULL;
             arg=(sign2 *)malloc(sizeof(sign2));
@@ -401,54 +439,78 @@ void lt(struct epoll_event *events,int number,int epollfd,int listenfd,int liste
         }
 		else if(events[i].events & EPOLLIN)
         {
-            for(int t=0;t<ssl_number;t++)
-                if(sockfd==tlsfd[t])
+            tpool_add_work(func1,(void *)var);
+        }
+        else if(events[i].events & EPOLLOUT)
+            {                       
+
+            }
+        else if(events[i].events & EPOLLHUP)
+			{
+            if(0==judge)
+            {
+                close(sockfd);
+                Channel *var=(Channel *)events[i].data.ptr;
+                free(var);
+                infofunc("HUP happened!");
+            }
+            else if(1==judge)
                 {
-                    judge=1;
-                    break;
+                    
+
                 }
-            sign *arg=NULL;
-            arg=(sign *)malloc(sizeof(sign));
-            arg->type=judge;
-            arg->clifd=sockfd;
-            tpool_add_work(func1,(void *)arg);
-        }        
-        else
-			infofunc("something else happened!");
+            } 
+        else 
+            infofunc("something else happened");
 	}
 }
 
-void getinfomation(int clifd,int judge)
+void getinfomation(Channel *var)
 {
 	char buf[MAXBUF];
 	int recvnum;
 	char command[10];
     char argument[MAXBUF];
 	char mes[MAXBUF];
+    int clifd=var->fd;
 	bzero(buf,MAXBUF);
 	bzero(argument,MAXBUF);
 	bzero(command,10);
 	bzero(mes,MAXBUF);
 	
     strcpy(argument,"./");
-    
-    if(0>(recvnum=recv(clifd,buf,sizeof(buf),0)))
+    if(0==judge) 
+    {
+        if(0>=(recvnum=recv(clifd,buf,sizeof(buf),0)))
 		{
-            infofunc("POST error!");
+            close(clifd);
+            SSL_shutdown(var->ssl);
+            SSL_free(var->ssl);
+            free(var);
             return;
         }    
-	if(2==sscanf(buf,"%s /%s",command,argument+2))//when %s meet a blank ,it will stop
+	    if(2==sscanf(buf,"%s /%s",command,argument+2))//when %s meet a blank ,it will stop
 		{
 			sprintf(mes,"recv data:\n%s",buf);
 			infomsg(mes);
 		}	
-	else
-        bzero(command,10);
-		strcpy(command,"ERROR");
-        echo_command(clifd,command,argument,buf,judge);
+	    else
+        {
+            bzero(command,10);
+		    strcpy(command,"ERROR");
+        }     
+        echo_command(command,argument,buf,var);
+    }
+    else if(1==judge)
+    {
+                     
+        
+        
+        
+    }
 }
 
-void echo_command(int clifd,char *command,char *argument,char *buf,int judge)
+void echo_command(char *command,char *argument,char *buf,Channel *var)
 {
     if((0==strcmp(argument+2,".."))||(0==strcmp(argument+2,".")))
         {
@@ -457,19 +519,19 @@ void echo_command(int clifd,char *command,char *argument,char *buf,int judge)
         }
 	if(0==strcmp(command,"GET"))
 	{
-		Get(clifd,argument,judge);
+		Get(var,argument);
 	}
 	else if(0==strcmp(command,"OPTIONS"))
 	{
-		Options(clifd,judge);
+		Options(var);
 	}
 	else if(0==strcmp(command,"POST"))
 	{
-		Post(clifd,argument,buf,judge);
+		Post(argument,buf,var);
 	}	
 	else if(0==strcmp(command,"head"))
 	{
-		Head(clifd,argument,judge);
+		Head(argument,var);
 	}
 	else if(0==strcmp(command,"ERROR"))
 	{
@@ -880,11 +942,9 @@ int tpool_add_work(void *(*routine)(void *),void *arg)
 
 void *func1(void *arg)
 {
-    sign *var=(sign *)arg;		    
-    int fd=var->clifd;
-    int judge=var->type;
-    getinfomation(fd,judge);
-    free(arg);
+    Channel *var=(Channel *)arg;		    
+    getinfomation(var);
+    free(var);
 }
 
 void *func2(void *arg)
@@ -894,16 +954,20 @@ void *func2(void *arg)
     int epollfd=var->epollfd;
     char buf[MAXBUF];
 	bzero(buf,MAXBUF);
+    struct timeval tv;
 	struct sockaddr_in cli_address;
 	socklen_t cli_addrlength=sizeof(struct sockaddr_in);	
 	int clifd=accept(listenfd,(struct sockaddr *)&cli_address,&cli_addrlength);
-	if(clifd<0)
+	tv.tv_sec=5;
+    tv.tv_usec=0;
+    setsockopt(clifd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv))
+    if(clifd<0)
 	{	
 		infofunc("clifd accept error!");
 		goto end;
 	}
 	sprintf(buf,"connect %s:%d!",inet_ntoa(cli_address.sin_addr),ntohs(cli_address.sin_port));		
-	addfd(epollfd,clifd);
+	addfd(epollfd,clifd,0);
 	infofunc(buf);
     end:;
 }
@@ -916,24 +980,18 @@ void *func3(void *arg)
     char buf[MAXBUF];
     bzero(buf,MAXBUF);
     struct sockaddr_in cli_address;
-    SSL *ssl;
+    struct timeval tv;
     int clifd;
     if(-1==(clifd=accept(listenfds,(struct sockaddr *)&cli_address,&sizeof(struct sockaddr))))
     {
         infofunc("ssl clifd accept error!");
         goto end;
     }
-    ssl=SSL_nex(ssl);
-    SSL_set_fd(ssl,clifd);
-    if(-1==SSL_accept(ssl))
-    {
-        infofunc("ssl_accept error!");
-        goto end;
-    }
-    pthread_mutex_lock(); 
-    tlsfd[ssl_number]=ssl;
-    ssl_number+=1;
-    pthread_mutex_unlock();
+    tv.tv_sec=5;
+    tv.tv_usec=0;
+    setsockopt(clifd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
+    addfd(epollfd,clifd,0);
     end:;
 }
+
 #endif HTTP_SERVER_H__
