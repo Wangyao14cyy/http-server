@@ -208,12 +208,14 @@ void daytime(void)
 	close(sockfd);
 }
 
-int sendall(int fd,char *buf,int *len,int judge) 
+int sendall(int fd,char *buf,int *len,int judge,SSL* ssl) 
 {
-	int n;
+    int n;
 	int total=0;
 	int byteleft=(*len);
-	while(total<(*len))
+	if(0==judge)
+    {
+        while(total<(*len))
 	{	
 		n=send(fd,buf+total,byteleft,0);
 		if(-1==n)
@@ -223,6 +225,20 @@ int sendall(int fd,char *buf,int *len,int judge)
 	}
 	len=&total; //return the number you write to buffer
 	return -1==n?-1:0;
+    }
+    else 
+    {
+        while(total<(*len))   
+        {
+            n=SSL_write(ssl,buf+total,byteleft);
+            if(-1==n)
+                break;
+            byteleft-=n;
+            total+=n;
+        }
+        len=&total;
+        return -1==n?-1:0;
+    }
 }
 
 void derrormsg(char *msg)
@@ -484,9 +500,6 @@ void getinfomation(Channel *var)
         if(0>=(recvnum=recv(clifd,buf,sizeof(buf),0)))
 		{
             close(clifd);
-            SSL_shutdown(var->ssl);
-            SSL_free(var->ssl);
-            free(var);
             return;
         }    
 	    if(2==sscanf(buf,"%s /%s",command,argument+2))//when %s meet a blank ,it will stop
@@ -503,10 +516,23 @@ void getinfomation(Channel *var)
     }
     else if(1==judge)
     {
-                     
-        
-        
-        
+        SSL* ssl=var->ssl;
+        if(0>=(recvnum=SSL_read(ssl,buf,sizeof(buf)))
+            {
+                close(clifd);
+                SSL_shutdown(ssl);
+                SSL_free(ssl);
+            }
+        if(2==sscanf(buf,"%s /%s",command,argument+2))
+           {
+               sprintf(mes,"recv ssl data:\n%s",buf);
+               infomsg(mes);
+           }
+        else{
+            bzero(command,10);
+            strcpy(command,"ERROR");
+        }
+        echo_command(command,argument,buf,var);
     }
 }
 
@@ -540,7 +566,7 @@ void echo_command(char *command,char *argument,char *buf,Channel *var)
 	}
 }
 
-void Get(int clifd,char *argument,int judge)
+void Get(Channel* var,char *argument)
 {
     int lengths;
 	struct stat info;
@@ -549,17 +575,20 @@ void Get(int clifd,char *argument,int judge)
 	char buf[MAXBUF];
 	bzero(buf,MAXBUF);
 	int ret;
+    
+    int judge=var->judge;
+    SSL* ssl=var->ssl;
 	if(stat(argument,&info))
 	{
 		if((errno==ENOENT)||(errno==ENOTDIR))
-           senderror(clifd,2,judge);
+           senderror(clifd,2,judge,ssl);
 		else
         {
         sprintf(buf,"HTTP/1.1 200 OK\r\nServer:ywang\r\nContent-Type:text/html;charset=UTF-8\r\n\r\n<html><head><title>%d - %s</title></head>"
 			"<body><font size=+4>Ywang's server</font><br><hr width=\"100%%\"><br><center>"
 			"<table border cols=3 width=\"100%%\">",errno,strerror(errno));	
         lengths=strlen(buf);    
-		ret=sendall(clifd,buf,&lengths,judge);
+		ret=sendall(clifd,buf,&lengths,judge,ssl);
 		if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -568,7 +597,7 @@ void Get(int clifd,char *argument,int judge)
 		bzero(buf,MAXBUF);	
 		sprintf(buf,"</table><font color=\"CC0000\" size=+2>Please contact the administrator consulting why appear as follows error message：\n%s %s</font></body></html>",argument+2,strerror(errno));
 		lengths=strlen(buf);
-        ret=sendall(clifd,buf,&lengths,judge);
+        ret=sendall(clifd,buf,&lengths,judge,ssl);
 		if(ret==-1)
 			{
 				infofunc("sendall error");	
@@ -578,7 +607,7 @@ void Get(int clifd,char *argument,int judge)
     else if(S_ISREG(info.st_mode))
 	{
        char *type=file_type(argument);
-       sendmsgs(clifd,type,argument,info.st_size,judge);
+       sendmsgs(clifd,type,argument,info.st_size,judge,ssl);
     }
     else if(S_ISDIR(info.st_mode))
     {
@@ -628,7 +657,7 @@ void Get(int clifd,char *argument,int judge)
 		}
 	    while((dirents=readdir(dir))!=NULL)
         {
-           if((0==strcmp(dirents->d_name,","))||(0==strcmp(dirents->d_name,",,")))
+           if((0==strcmp(dirents->d_name,"."))||(0==strcmp(dirents->d_name,"..")))
             continue;
            strcpy(buf,dirents->d_name);
            lengths=strlen(buf);
@@ -658,7 +687,7 @@ void Get(int clifd,char *argument,int judge)
             "<body><font size=+4>Linux directory access server</font><br><hr width=\"100%%\"><br><center>"  
              "<table border cols=3 width=\"100%%\">");
         lengths=strlen(buf);
-        ret=sendall(clifd,buf,&lengths,judge);
+        ret=sendall(clifd,buf,&lengths,judge,ssl);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -667,7 +696,7 @@ void Get(int clifd,char *argument,int judge)
         bzero(buf,MAXBUF);
         sprintf(buf,"</table><font color=\"CC0000\" size=+2>You visit resources '%s' be under an embargo，Please contact the administrator to solve!</font></body></html& gt;", argument+2);
         lengths=strlen(buf);
-        ret=sendall(clifd,buf,&lengths,judge);
+        ret=sendall(clifd,buf,&lengths,judge,ssl);
  		    if(ret==-1)
 			{
 				infofunc("sendall error!");
@@ -685,21 +714,22 @@ char *file_type(char *argument)
     return NULL;
 }
 
-void sendmsgs(int clifd,char *type,char *argument,int length,int judge)
+void sendmsgs(int clifd,char *type,char *argument,int length,int judgei,SSL* ssl)
 {
     int lengths;
     int err_bit=0;
     int fd;
     int nbytes,n;
+    SSL* ssl=var->ssl;
     char buf[MAXBUF];
     if(0>(fd=open(argument,O_RDONLY))) //open maybe dangerous because work_dir's question   
         err_bit=1;
-    sendhead(clifd,type,length,err_bit,judge);
+    sendhead(clifd,type,length,err_bit,judge,ssl);
     bzero(buf,MAXBUF);
     while((nbytes=recv(fd,buf,MAXBUF,0))>0) 
     {
         lengths=strlen(buf);
-        n=sendall(clifd,buf,&lengths,judge);
+        n=sendall(clifd,buf,&lengths,judge,ssl);
         bzero(buf,MAXBUF);
         if(n==-1)
         break;
@@ -713,7 +743,7 @@ void sendmsgs(int clifd,char *type,char *argument,int length,int judge)
         close(fd);
 }
 
-void sendhead(int clifd,char *type,int length,int err_bit,int judge)
+void sendhead(int clifd,char *type,int length,int err_bit,int judge,SSL *ssl)
 {
    int lengths;
    char *content_type=NULL;
@@ -732,11 +762,11 @@ void sendhead(int clifd,char *type,int length,int err_bit,int judge)
     bzero(buf,MAXBUF);
     sprintf(buf,"HTTP/1.1 %s\r\nContent-type: %s\r\nContent-length: %d\r\n\r\n",content_type,req[err_bit],length);
     lengths=strlen(buf); 
-    if(-1==sendall(clifd,buf,&lengths,judge))
+    if(-1==sendall(clifd,buf,&lengths,judge,ssl))
         infofunc("send head error!");
 }
 
-void senderror(int clifd,int bit,int judge)//send 404 or 500 error to client
+void senderror(int clifd,int bit,int judge,ssl)//send 404 or 500 error to client
 {
     int lengths;
     char buf[MAXBUF];    
@@ -753,9 +783,9 @@ void Options(int clifd,int judge)
     char buf[MAXBUF];
 	bzero(buf,MAXBUF);
 	sprintf(buf,"HTTP/1.1 200 OK\r\nAllow: GET, POST, HEAD, OPTIONS\r\nContent-length: 0\r\n\r\n");
-	int ret=sendall(clifd,buf,&lengths,judge);
+	int ret=sendall(clifd,buf,&lengths,judge,ssl);
  	if(ret==-1)
-		senderror(clifd,1,judge);    
+		senderror(clifd,1,judge,ssl);    
 }
 
 void Post(int clifd,char *argument,char *buf,int judge) //cgi
@@ -784,8 +814,10 @@ void Post(int clifd,char *argument,char *buf,int judge) //cgi
     return;   
 }
 
-void Head(int clifd,char *argument,int judge)
+void Head(char *argument,Channel *var)
 {	
+    int judge=var->judge;
+    SSL* ssl=var->ssl;
     int err_bit;
 	struct stat info;
 	char *type=file_type(argument);
@@ -794,7 +826,7 @@ void Head(int clifd,char *argument,int judge)
 	else
 		err_bit=0;
 	
-	sendhead(clifd,type,info.st_size,err_bit,judge);
+	sendhead(clifd,type,info.st_size,err_bit,judge,ssl);
 }
 
 void ssl_init(SSL_CTX *ctx)  //https
