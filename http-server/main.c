@@ -11,7 +11,7 @@ int main(int argc,char **argv)
 	if(NULL==_log)
 		logfd=open(DEFAULTLOG,O_WRONLY | O_APPEND | O_CREAT);
 	else
-		logfd=open(_log,O_WRONLY | O_CREAT | O_APPENDmZ;
+		logfd=open(_log,O_WRONLY | O_CREAT | O_APPEND);
 	
 	daytime();
 	int sockfd,sockfds;
