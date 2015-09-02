@@ -57,12 +57,12 @@ ERR_print_errors_fp(stdout);
 exit(1);
 }
 /* 载入用户的数字证书， 此证书用来发送给客户端。 证书里包含有公钥 */
-if (SSL_CTX_use_certificate_file(ctx, argv[4], SSL_FILETYPE_PEM) <= 0) {
+if (SSL_CTX_use_certificate_file(ctx, argv[3], SSL_FILETYPE_PEM) <= 0) {
 ERR_print_errors_fp(stdout);
 exit(1);
 }
 /* 载入用户私钥 */
-if (SSL_CTX_use_PrivateKey_file(ctx, argv[5], SSL_FILETYPE_PEM) <= 0) {
+if (SSL_CTX_use_PrivateKey_file(ctx, argv[4], SSL_FILETYPE_PEM) <= 0) {
 ERR_print_errors_fp(stdout);
 exit(1);
 }
@@ -82,9 +82,6 @@ printf("socket created\n");
 bzero(&my_addr, sizeof(my_addr));
 my_addr.sin_family = PF_INET;
 my_addr.sin_port = htons(myport);
-if (argv[3])
-my_addr.sin_addr.s_addr = inet_addr(argv[3]);
-else
 my_addr.sin_addr.s_addr = INADDR_ANY;
 
 if (bind(sockfd, (struct sockaddr *) &my_addr, sizeof(struct sockaddr))

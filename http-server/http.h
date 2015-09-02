@@ -18,12 +18,10 @@
 #include <sys/epoll.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/bio.h>
 #include <signal.h> 
 #include <pthread.h>
 #include <netdb.h>
-
-#ifndef HTTP_SERVER_H__
-#define HTTP_SERVER_H__
 
 #define DEFAULTPORT 8899
 #define DEFAULTLOG "/home/wangyao/log/http.log"
@@ -831,12 +829,17 @@ void ssl_init(SSL_CTX *ctx)  //https
 	OpenSSL_add_all_algorithms();
 	SSL_load_error_strings();
     ctx=SSL_CTX_new(SSLv23_server_method());    
-    SSL_CTX_new(SSLv23_server_method());
 	if(ctx==NULL)
 	{
 		errorfunc("ssl_init error!");
 	}
-    if(SSL_CTK_use_PrivateKey_file(ctx,,SSL_FILETYPE_PEM)<=0)
+    char *key="./CA/server.key";
+    char *cert="./CA/server.crt";
+    if(SSL_CTX_use_certificate_file(ctx,cert,SSL_FILETYPE_PEM))
+    {
+        errorfunc("ssl init_private_cert error!");
+    }
+    if(SSL_CTX_use_PrivateKey_file(ctx,key,SSL_FILETYPE_PEM))
     {
         errorfunc("ssl_init_private_key error!");
     }
@@ -1024,4 +1027,3 @@ void *func3(void *arg)
     addfd(epollfd,clifd,0);
     end:;
 }
-#endif HTTP_SERVER_H__

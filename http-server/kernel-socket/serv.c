@@ -61,7 +61,6 @@ int myserver(void){
                 return -1;
         }
         memset(recvbuf, 0, sizeof(recvbuf));
-
         /*receive message from client*/
         struct kvec vec;
         struct msghdr msg;

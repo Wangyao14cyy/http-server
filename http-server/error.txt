@@ -1,12 +1,28 @@
 In file included from main.c:1:
-./http.h:742:2: error: use of undeclared identifier 'ctx'
-        ctx = SSL_CTX_new(SSLv23_server_method());
-        ^
-./http.h:743:5: error: use of undeclared identifier 'ctx'
-        if(ctx==NULL)
-           ^
-./http.h:883:8: warning: extra tokens at end of #endif directive [-Wextra-tokens]
+./http.h:844:8: warning: implicit declaration of function 'SSL_CTK_use_privateKey_file' is invalid in C99 [-Wimplicit-function-declaration]
+    if(SSL_CTK_use_privateKey_file(ctx,key,SSL_FILETYPE_PEM)<=0)
+       ^
+./http.h:983:1: warning: control reaches end of non-void function [-Wreturn-type]
+}
+^
+./http.h:1008:1: warning: control reaches end of non-void function [-Wreturn-type]
+}
+^
+./http.h:1021:68: warning: passing 'int *' to parameter of type 'socklen_t *' (aka 'unsigned int *') converts between pointers to integer types with different sign [-Wpointer-sign]
+    if(-1==(clifd=accept(listenfds,(struct sockaddr *)&cli_address,&len)))
+                                                                   ^~~~
+/usr/include/sys/socket.h:244:28: note: passing argument to parameter '__addr_len' here
+                   socklen_t *__restrict __addr_len);
+                                         ^
+In file included from main.c:1:
+./http.h:1032:8: warning: extra tokens at end of #endif directive [-Wextra-tokens]
 #endif HTTP_SERVER_H__
        ^
        //
-1 warning and 2 errors generated.
+./http.h:1031:1: warning: control reaches end of non-void function [-Wreturn-type]
+}
+^
+6 warnings generated.
+/tmp/main-b58b36.o: In function `ssl_init':
+main.c:(.text+0x2cf8): undefined reference to `SSL_CTK_use_privateKey_file'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
