@@ -833,8 +833,8 @@ void ssl_init(SSL_CTX *ctx)  //https
 	{
 		errorfunc("ssl_init error!");
 	}
-    char *key="./CA/server.key";
-    char *cert="./CA/server.crt";
+    char *key="./CA/ca.key";
+    char *cert="./CA/ca.crt";
     if(SSL_CTX_use_certificate_file(ctx,cert,SSL_FILETYPE_PEM))
     {
         errorfunc("ssl init_private_cert error!");

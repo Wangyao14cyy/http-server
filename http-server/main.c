@@ -3,9 +3,8 @@ extern int errno;
 
 int main(int argc,char **argv)
 {
-    extern pthread_mutex_t mutex_all;
 	printf("Http server welcome you!\n");
-    tpool_create(10);	
+    tpool_create(10);
 	if(1!=argc)
 	getoption(argc,argv);//It's hard to learn how to use it  
 	if(NULL==_log)
@@ -17,7 +16,8 @@ int main(int argc,char **argv)
 	int sockfd,sockfds;
 	if(daemon_check)
 		daemons();
-	signal(SIGPIPE,SIG_IGN);
+    ssl_init(ctx);
+    signal(SIGPIPE,SIG_IGN);
 	signal(SIGCHLD, SIG_IGN);
 	sockfd=make_socket(sockfd);
     sockfds=make_socket_ssl(sockfds);
